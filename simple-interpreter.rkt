@@ -1,36 +1,125 @@
 #lang racket
 
-(require "simpleParser.rkt")
+;(require "simpleParser.rkt")
 
 (define forbidden-characters '(+ - / * % == != < <= > >= && || !))
 
-(define interpret
-  (lambda (filename)
-    (read-parse-tree (parser filename) '())))
+;(define interpret
+;  (lambda (filename)
+ ;  (read-syntax-tree (parser filename) '())))
 
-(define M-eval
+(define read-syntax-tree
+  (lambda (parse-tree state)
+    ;(display state) (newline)
+    (cond
+      ((null? parse-tree) state)
+      ((list? (car parse-tree)) (read-syntax-tree (cdr parse-tree) (read-statement (car parse-tree) state)))
+      (else (error 'invalid-statement)))))
+
+(define read-statement
+  (lambda (statement state)
+    ;(display state) (newline)
+    (cond
+      ((null? statement) state)
+      ((and (eq? (car statement) 'var) (eq? (length statement) 3)) (M-state-var-define (parameter1 statement) (parameter2 statement) state))
+      ((and (eq? (car statement) 'var) (eq? (length statement) 2)) (M-state-var-initialize (parameter1 statement) state))
+      ((and (eq? (car statement) '=))                              (M-state-assign (parameter1 statement) (parameter2 statement) state))
+      ((and (eq? (car statement) 'return))                         (M-state-return (parameter1 statement) state))
+      ((and (eq? (car statement) 'if) (eq? (length statement) 4))  (M-state-if-else (parameter1 statement) (parameter2 statement) (parameter3 statement) state))
+      ((and (eq? (car statement) 'if) (eq? (length statement) 3))  (M-state-if (parameter1 statement) (parameter2 statement) state))
+      ((and (eq? (car statement) 'while))                          (M-state-while (cadr statement) (caddr statement) state))
+      (else                                                        (error 'invalid-statement)))))
+
+(define parameter1
+  (lambda (expression)
+    (cadr expression)))
+
+(define parameter2
+  (lambda (expression)
+    (caddr expression)))
+
+(define parameter3
+  (lambda (expression)
+    (cadddr expression)))
+
+(define atom?
+  (lambda (x)
+    (not (or (pair? x) (null? x)))))
+
+(define M-state-return
+  (lambda (expression state)
+    (if (atom? expression)
+        (cond
+          ((integer? expression) (M-state-return-cleanup expression state))
+          ((number? expression) (M-state-return-cleanup expression))
+          (else (M-state-return-cleanup (get-var-value expression state) state)))
+        (M-state-return-cleanup (M-value expression state) state))))
+
+(define M-state-return-cleanup
+  (lambda (output state)
+    (cond
+      ((integer? output) output)
+      ((number? output) (exact-floor output))
+      ((eq? output #f) 'false)
+      ((eq? output #t) 'true)
+      ((and (atom? output) (not (or (number? output) (contains? output forbidden-characters)))) (if (check-var output state)
+                                                                                                                (car (myreplace output (get-var-value output state) (list output)))
+                                                                                                                (error 'undefined-variable)))
+      (else (error 'bad-output)))))
+
+(define M-state-assign
+  (lambda (var expression state)
+    (update-value var (M-value expression state) state)))
+
+(define M-state-var-define
+  (lambda (var value state)
+    (add-binding-pair var (M-value value state) state)))
+
+(define M-state-var-initialize
+  (lambda (var state)
+    (add-binding-pair-var-only var state)))
+
+(define M-state-if-else
+  (lambda (cdal body else-statement state)
+    (if (M-value cdal state)
+        (read-statement body state)
+        (read-statement else-statement state))))
+
+(define M-state-if
+  (lambda (cdal body state)
+    (if (M-value cdal state)
+        (read-statement body state)
+        state)))
+
+(define M-state-while
+  (lambda (cdal body state)
+    (if (M-value cdal state)
+        (M-state-while cdal body (read-statement body state))
+        state)))
+
+(define M-value
   (lambda (expression state)
     (cond
       ((number? expression) expression)
       ((boolean? expression) expression)
-      ((and (atom? expression) (not (or (number? expression) (contains? expression forbidden-characters) (eq? expression 'true) (eq? expression 'false)))) (if (check-var state expression)
-                                                                                                                (car (myreplace (list expression) (get-var-value state expression) (list expression)))
+      ((and (atom? expression) (not (or (number? expression) (contains? expression forbidden-characters) (eq? expression 'true) (eq? expression 'false)))) (if (check-var expression state)
+                                                                                                                (car (myreplace (list expression) (get-var-value expression state) (list expression)))
                                                                                                                 (error 'undefined-variable)))
-      ((eq? (operator expression) '+)      (+ (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((and (eq? (operator expression) '-) (eq? (length expression) 3) (- (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state))))
-      ((and (eq? (operator expression) '-) (eq? (length expression) 2) (- 0 (M-eval (leftoperand expression state) state))))
-      ((eq? (operator expression) '/)      (quotient (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))                            
-      ((eq? (operator expression) '*)      (* (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '%)      (remainder (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '==)     (eq? (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '!=)     (not (eq? (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state))))
-      ((eq? (operator expression) '<)      (< (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '<=)     (<= (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '>)      (> (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '>=)     (>= (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '&&)     (and (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '||)     (or (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
-      ((eq? (operator expression) '!)      (not (M-eval (leftoperand expression state) state)))
+      ((eq? (operator expression) '+)      (+ (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((and (eq? (operator expression) '-) (eq? (length expression) 3) (- (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state))))
+      ((and (eq? (operator expression) '-) (eq? (length expression) 2) (- 0 (M-value (leftoperand expression state) state))))
+      ((eq? (operator expression) '/)      (quotient (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))                            
+      ((eq? (operator expression) '*)      (* (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '%)      (remainder (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '==)     (eq? (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '!=)     (not (eq? (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state))))
+      ((eq? (operator expression) '<)      (< (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '<=)     (<= (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '>)      (> (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '>=)     (>= (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '&&)     (and (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '||)     (or (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
+      ((eq? (operator expression) '!)      (not (M-value (leftoperand expression state) state)))
       (else (error 'bad-operator)))))
 
 (define operator
@@ -41,8 +130,8 @@
   (lambda (expression state)
     (cond
       ((list? (cadr expression)) (cadr expression))
-      ((not (or (number? (cadr expression)) (contains? (cadr expression) forbidden-characters))) (if (check-var state (cadr expression))
-                                                                                                     (cadr (myreplace (cadr expression) (get-var-value state (cadr expression)) expression))
+      ((not (or (number? (cadr expression)) (contains? (cadr expression) forbidden-characters))) (if (check-var (cadr expression) state)
+                                                                                                     (cadr (myreplace (cadr expression) (get-var-value (cadr expression) state) expression))
                                                                                                      (error 'undefined-variable)))
       (else (cadr expression)))))
 
@@ -50,8 +139,8 @@
   (lambda (expression state)
     (cond
       ((list? (caddr expression)) (caddr expression))
-      ((not (or (number? (caddr expression)) (contains? (caddr expression) forbidden-characters))) (if (check-var state (caddr expression))
-                                                                                                     (caddr (myreplace (caddr expression) (get-var-value state (caddr expression)) expression))
+      ((not (or (number? (caddr expression)) (contains? (caddr expression) forbidden-characters))) (if (check-var (caddr expression) state)
+                                                                                                     (caddr (myreplace (caddr expression) (get-var-value (caddr expression) state) expression))
                                                                                                      (error 'undefined-variable)))
       (else (caddr expression)))))
 
@@ -70,135 +159,45 @@
       ((eq? (car lis) a) (cons b (myreplace a b (cdr lis))))
       (else (cons (car lis) (myreplace a b (cdr lis)))))))
 
-(define parameter1
-  (lambda (expression)
-    (cadr expression)))
-
-(define parameter2
-  (lambda (expression)
-    (caddr expression)))
-
-(define parameter3
-  (lambda (expression)
-    (cadddr expression)))
-
-(define read-parse
-  (lambda (statement M-state)
-    ;(display M-state) (newline)
-    (cond
-      ((null? statement) M-state)
-      ((and (eq? (car statement) 'var) (eq? (length statement) 3)) (var-define-parse (parameter1 statement) (parameter2 statement) M-state))
-      ((and (eq? (car statement) 'var) (eq? (length statement) 2)) (var-initialize-parse (parameter1 statement) M-state))
-      ((and (eq? (car statement) '=)) (assign-parse (parameter1 statement) (parameter2 statement) M-state))
-      ((and (eq? (car statement) 'return)) (return-parse (parameter1 statement) M-state))
-      ((and (eq? (car statement) 'if) (eq? (length statement) 4)) (if-else-parse (parameter1 statement) (parameter2 statement) (parameter3 statement) M-state))
-      ((and (eq? (car statement) 'if) (eq? (length statement) 3)) (if-parse (parameter1 statement) (parameter2 statement) M-state))
-      ((and (eq? (car statement) 'while)) (while-parse (cadr statement) (caddr statement) M-state))
-      (else (error 'invalid-statement)))))
-
-(define read-parse-tree
-  (lambda (parse-tree M-state)
-    ;(display M-state) (newline)
-    (cond
-      ((null? parse-tree) M-state)
-      ((list? (car parse-tree)) (read-parse-tree (cdr parse-tree) (read-parse (car parse-tree) M-state)))
-      (else (error 'invalid-statement)))))
-
-(define atom?
-  (lambda (x)
-    (not (or (pair? x) (null? x)))))
-
-(define return-parse
-  (lambda (expression state)
-    (if (atom? expression)
-        (cond
-          ((integer? expression) (return-parse-cleanup expression state))
-          ((number? expression) (return-parse-cleanup expression))
-          (else (return-parse-cleanup (get-var-value state expression) state)))
-        (return-parse-cleanup (M-eval expression state) state))))
-
-(define return-parse-cleanup
-  (lambda (output state)
-    (cond
-      ((integer? output) output)
-      ((number? output) (exact-floor output))
-      ((eq? output #f) 'false)
-      ((eq? output #t) 'true)
-      ((and (atom? output) (not (or (number? output) (contains? output forbidden-characters)))) (if (check-var state output)
-                                                                                                                (car (myreplace output (get-var-value state output) (list output)))
-                                                                                                                (error 'undefined-variable)))
-      (else (error 'bad-output)))))
-
-(define assign-parse
-  (lambda (var expression state)
-    (replace-old-value state var (M-eval expression state))))
-
-(define var-define-parse
-  (lambda (var value state)
-    (add-binding-pair state var (M-eval value state))))
-
-(define var-initialize-parse
-  (lambda (var state)
-    (add-binding-pair-var-only state var)))
-
-(define if-else-parse
-  (lambda (cdal body else-statement state)
-    (if (M-eval cdal state)
-        (read-parse body state)
-        (read-parse else-statement state))))
-
-(define if-parse
-  (lambda (cdal body state)
-    (if (M-eval cdal state)
-        (read-parse body state)
-        state)))
-
-(define while-parse
-  (lambda (cdal body state)
-    (if (M-eval cdal state)
-        (while-parse cdal body (read-parse body state))
-        state)))
-
 ;FUNCTION: add a variable without a value to list
 ;INPUT: a list and a new variable
 ;OUTPUT: the list that results from adding the variable
 (define add-binding-pair-var-only
-  (lambda (pairs var)
-    (cons (list var) pairs)))
+  (lambda (var state)
+    (cons (list var) state)))
 
 ;FUNCTION: add a binding pair to list
 ;INPUT: a list, new variable, and the variable's value
 ;OUTPUT: the list that results from adding the binding pair
 (define add-binding-pair
-  (lambda (pairs var val)
-    (cons (list var val) pairs)))
+  (lambda (var val state)
+    (cons (list var val) state)))
 
 ;FUNCTION: check if the variable is in the binding pairs list
 ;INPUT: a list and variable
 ;OUTPUT: true if the variable is in the list and false if it is not
 (define check-var
-  (lambda (pairs var)
-    (cond ((null? pairs)                  #f)
-          ((equal? (car (car pairs)) var) #t)
-          (else                           (check-var (cdr pairs) var)))))
+  (lambda (var state)
+    (cond ((null? state)                  #f)
+          ((equal? (car (car state)) var) #t)
+          (else                           (check-var var (cdr state))))))
 
 ;FUNCTION: gets value of variable from the list of binding pairs
 ;INPUT: a list and a variable
 ;OUTPUT: the value bound to the variable
 (define get-var-value
-  (lambda (pairs var)
-    (cond ((null? pairs)                                                        error 'error)
-          ((and (equal? 1 (length (car pairs))) (equal? (car (car pairs)) var)) error 'undeclared-variable)
-          ((equal? (car (car pairs)) var)                                       (cadr (car pairs)))
-          (else                                                                 (get-var-value (cdr pairs) var))))) 
+  (lambda (var state)
+    (cond ((null? state)                                                        error 'error)
+          ((and (equal? 1 (length (car state))) (equal? (car (car state)) var)) error 'undeclared-variable)
+          ((equal? (car (car state)) var)                                       (cadr (car state)))
+          (else                                                                 (get-var-value var (cdr state)))))) 
 
-;FUNCTION: replace an old value bound with an existing variable to a new value
+;FUNCTION: update an old value bound with an existing variable or unassigned variable to a new value
 ;INPUT : a list, exisiting variable, and new value
-;OUTPUT: the list that results from replacing the old value with the new value
-(define replace-old-value
-  (lambda (pairs var val)
-    (cond ((null? pairs)                  error 'error)
-          ((and (eq? (length (car pairs)) 1) (eq? var (car (car pairs)))) (cons (append (car pairs) (list val)) (cdr pairs)))
-          ((equal? (car (car pairs)) var) (cons (list var val) (cdr pairs)))
-          (else                           (cons (car pairs) (replace-old-value (cdr pairs) var val))))))
-
+;OUTPUT: the list that results from updating the variable's value
+(define update-value
+  (lambda (var val state)
+    (cond ((null? state)                  error 'error)
+          ((and (eq? (length (car state)) 1) (eq? var (car (car state)))) (cons (append (car state) (list val)) (cdr state)))
+          ((equal? (car (car state)) var) (cons (list var val) (cdr state)))
+          (else                           (cons (car state) (update-value var val (cdr state)))))))
