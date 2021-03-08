@@ -6,26 +6,26 @@
 
 (define interpret
   (lambda (filename)
-   (read-syntax-tree (parser filename) '())))
+   (read-syntax-tree (parser filename) create-new-state)))
 
 (define read-syntax-tree
   (lambda (parse-tree state)
     (cond
-      ((null? parse-tree) state)
+      ((null? parse-tree) (get-var-value 'return-value state))
       ((list? (car parse-tree)) (read-syntax-tree (cdr parse-tree) (read-statement (car parse-tree) state)))
       (else (error 'invalid-statement)))))
 
 (define read-statement
   (lambda (statement state)
     (cond
-      ((null? statement) state)
+      ((null? statement) (get-var-value 'return-value state))
       ((and (eq? (car statement) 'var) (eq? (length statement) 3)) (M-state-var-define (parameter1 statement) (parameter2 statement) state))
       ((and (eq? (car statement) 'var) (eq? (length statement) 2)) (M-state-var-initialize (parameter1 statement) state))
       ((and (eq? (car statement) '=))                              (M-state-assign (parameter1 statement) (parameter2 statement) state))
       ((and (eq? (car statement) 'return))                         (M-state-return (parameter1 statement) state))
       ((and (eq? (car statement) 'if) (eq? (length statement) 4))  (M-state-if-else (parameter1 statement) (parameter2 statement) (parameter3 statement) state))
       ((and (eq? (car statement) 'if) (eq? (length statement) 3))  (M-state-if (parameter1 statement) (parameter2 statement) state))
-      ((and (eq? (car statement) 'while))                          (M-state-while (cadr statement) (caddr statement) state))
+      ((and (eq? (car statement) 'while))                          (M-state-while (parameter1 statement) (parameter2 statement) state))
       (else                                                        (error 'invalid-statement)))))
 
 (define parameter1
@@ -58,12 +58,12 @@
 (define M-state-return-cleanup
   (lambda (output state)
     (cond
-      ((integer? output) output)
-      ((number? output) (exact-floor output))
-      ((eq? output #f) 'false)
-      ((eq? output #t) 'true)
+      ((integer? output) (update-value 'return-value output state))
+      ((number? output) (exact-floor (update-value 'return-value output state)))
+      ((eq? output #f) (update-value 'return-value 'false state))
+      ((eq? output #t) (update-value 'return-value 'true state))
       ((and (atom? output) (not (or (number? output) (contains? output forbidden-characters)))) (if (check-var output state)
-                                                                                                                (car (myreplace output (get-var-value output state) (list output)))
+                                                                                                                (update-value 'return-value (car (myreplace output (get-var-value output state) (list output))) state)
                                                                                                                 (error 'undefined-variable)))
       (else (error 'bad-output)))))
 
@@ -206,3 +206,7 @@
           ((and (eq? (length (car state)) 1) (eq? var (car (car state)))) (cons (append (car state) (list val)) (cdr state)))
           ((equal? (car (car state)) var)    (cons (list var val) (cdr state)))
           (else                              (cons (car state) (update-value var val (cdr state)))))))
+
+;FUNCTION: creates a new state with a default reutn value of 0
+;OUTPUT: a new state
+(define create-new-state '((return-value 0)))
