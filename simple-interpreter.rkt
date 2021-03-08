@@ -44,6 +44,10 @@
   (lambda (x)
     (not (or (pair? x) (null? x)))))
 
+(define variable?
+  (lambda (x)
+    (and (atom? x) (not (or (number? x) (contains? x forbidden-characters) (eq? x 'true) (eq? x 'false))))))
+
 (define M-state-return
   (lambda (expression state)
     (if (atom? expression)
@@ -62,9 +66,9 @@
       ((number? output) (exact-floor (update-value 'return-value output state)))
       ((eq? output #f) (update-value 'return-value 'false state))
       ((eq? output #t) (update-value 'return-value 'true state))
-      ((and (atom? output) (not (or (number? output) (contains? output forbidden-characters)))) (if (check-var output state)
-                                                                                                                (update-value 'return-value (car (myreplace output (get-var-value output state) (list output))) state)
-                                                                                                                (error 'undefined-variable)))
+      ((variable? output) (if (check-var output state)
+                              (update-value 'return-value (car (myreplace output (get-var-value output state) (list output))) state)
+                              (error 'undefined-variable)))
       (else (error 'bad-output)))))
 
 (define M-state-assign
@@ -102,9 +106,9 @@
     (cond
       ((number? expression) expression)
       ((boolean? expression) expression)
-      ((and (atom? expression) (not (or (number? expression) (contains? expression forbidden-characters) (eq? expression 'true) (eq? expression 'false)))) (if (check-var expression state)
-                                                                                                                (car (myreplace (list expression) (get-var-value expression state) (list expression)))
-                                                                                                                (error 'undefined-variable)))
+      ((variable? expression) (if (check-var expression state)
+                                  (car (myreplace (list expression) (get-var-value expression state) (list expression)))
+                                  (error 'undefined-variable)))
       ((eq? (operator expression) '+)      (+ (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
       ((and (eq? (operator expression) '-) (eq? (length expression) 3) (- (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state))))
       ((and (eq? (operator expression) '-) (eq? (length expression) 2) (- 0 (M-value (leftoperand expression state) state))))
