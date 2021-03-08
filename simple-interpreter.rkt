@@ -1,16 +1,15 @@
 #lang racket
 
-;(require "simpleParser.rkt")
+(require "simpleParser.rkt")
 
 (define forbidden-characters '(+ - / * % == != < <= > >= && || !))
 
-;(define interpret
-;  (lambda (filename)
- ;  (read-syntax-tree (parser filename) '())))
+(define interpret
+  (lambda (filename)
+   (read-syntax-tree (parser filename) '())))
 
 (define read-syntax-tree
   (lambda (parse-tree state)
-    ;(display state) (newline)
     (cond
       ((null? parse-tree) state)
       ((list? (car parse-tree)) (read-syntax-tree (cdr parse-tree) (read-statement (car parse-tree) state)))
@@ -18,7 +17,6 @@
 
 (define read-statement
   (lambda (statement state)
-    ;(display state) (newline)
     (cond
       ((null? statement) state)
       ((and (eq? (car statement) 'var) (eq? (length statement) 3)) (M-state-var-define (parameter1 statement) (parameter2 statement) state))
@@ -52,7 +50,9 @@
         (cond
           ((integer? expression) (M-state-return-cleanup expression state))
           ((number? expression) (M-state-return-cleanup expression))
-          (else (M-state-return-cleanup (get-var-value expression state) state)))
+          (else (if (check-var (get-var-value expression state) state)
+                    (M-state-return (get-var-value expression state) state)
+                    (M-state-return-cleanup (get-var-value expression state) state))))
         (M-state-return-cleanup (M-value expression state) state))))
 
 (define M-state-return-cleanup
@@ -130,6 +130,8 @@
   (lambda (expression state)
     (cond
       ((list? (cadr expression)) (cadr expression))
+      ((eq? (cadr expression) 'true) #t)
+      ((eq? (cadr expression) 'false) #f)
       ((not (or (number? (cadr expression)) (contains? (cadr expression) forbidden-characters))) (if (check-var (cadr expression) state)
                                                                                                      (cadr (myreplace (cadr expression) (get-var-value (cadr expression) state) expression))
                                                                                                      (error 'undefined-variable)))
@@ -139,6 +141,8 @@
   (lambda (expression state)
     (cond
       ((list? (caddr expression)) (caddr expression))
+      ((eq? (caddr expression) 'true) #t)
+      ((eq? (caddr expression) 'false) #f)
       ((not (or (number? (caddr expression)) (contains? (caddr expression) forbidden-characters))) (if (check-var (caddr expression) state)
                                                                                                      (caddr (myreplace (caddr expression) (get-var-value (caddr expression) state) expression))
                                                                                                      (error 'undefined-variable)))
@@ -197,7 +201,8 @@
 ;OUTPUT: the list that results from updating the variable's value
 (define update-value
   (lambda (var val state)
-    (cond ((null? state)                  error 'error)
+    (cond ((null? state)                     error 'error)
+          ((eq? var val)                     state)
           ((and (eq? (length (car state)) 1) (eq? var (car (car state)))) (cons (append (car state) (list val)) (cdr state)))
-          ((equal? (car (car state)) var) (cons (list var val) (cdr state)))
-          (else                           (cons (car state) (update-value var val (cdr state)))))))
+          ((equal? (car (car state)) var)    (cons (list var val) (cdr state)))
+          (else                              (cons (car state) (update-value var val (cdr state)))))))
