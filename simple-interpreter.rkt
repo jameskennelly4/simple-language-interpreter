@@ -107,14 +107,18 @@
 ; OUTPUT: updated state
 (define M-state-assign
   (lambda (var expression state)
-    (update-value var (M-value expression state) state)))
+    (if (check-var var state)
+        (update-value var (M-value expression state) state)
+        (error 'undefined-variable))))
 
 ; FUNCTION: evaluates the one parameter variable declaration statement
 ; INPUT: one parameter variable declaration statement and current state
 ; OUTPUT: updated state
 (define M-state-var-define
   (lambda (var value state)
-    (add-binding-pair var (M-value value state) state)))
+    (if (check-var var state)
+        (error 'already-defined)
+        (add-binding-pair var (M-value value state) state))))
 
 ; FUNCTION: evaluates the two parameter variable declaration statement
 ; INPUT: two parameter variable declaration statement and current state
