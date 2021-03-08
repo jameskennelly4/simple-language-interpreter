@@ -1,24 +1,17 @@
 #lang racket
 
-(require "simpleParser.rkt")
+;(require "simpleParser.rkt")
 
 (define forbidden-characters '(+ - / * % == != < <= > >= && || !))
-
-(define interpret
-  (lambda (filename)
-    (read-parse-tree (parser filename) '())))
 
 (define M-eval
   (lambda (expression state)
     (cond
       ((number? expression) expression)
       ((boolean? expression) expression)
-      ((and (atom? expression) (not (or (number? expression) (contains? expression forbidden-characters) (eq? expression 'true) (eq? expression 'false)))) (if (check-var state expression)
-                                                                                                                (car (myreplace (list expression) (get-var-value state expression) (list expression)))
-                                                                                                                (error 'undefined-variable)))
       ((eq? (operator expression) '+)      (+ (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
       ((and (eq? (operator expression) '-) (eq? (length expression) 3) (- (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state))))
-      ((and (eq? (operator expression) '-) (eq? (length expression) 2) (- 0 (M-eval (leftoperand expression state) state))))
+      ((and (eq? (operator expression) '-) (eq? (length expression state) 2) (- 0 (M-eval (leftoperand expression state) state))))
       ((eq? (operator expression) '/)      (quotient (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))                            
       ((eq? (operator expression) '*)      (* (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
       ((eq? (operator expression) '%)      (remainder (M-eval (leftoperand expression state) state) (M-eval (rightoperand expression state) state)))
@@ -84,23 +77,22 @@
 
 (define read-parse
   (lambda (statement M-state)
-    ;(display M-state) (newline)
+    (display M-state) (newline)
     (cond
-      ((null? statement) M-state)
+      ((null? statement) 'end)
       ((and (eq? (car statement) 'var) (eq? (length statement) 3)) (var-define-parse (parameter1 statement) (parameter2 statement) M-state))
       ((and (eq? (car statement) 'var) (eq? (length statement) 2)) (var-initialize-parse (parameter1 statement) M-state))
       ((and (eq? (car statement) '=)) (assign-parse (parameter1 statement) (parameter2 statement) M-state))
       ((and (eq? (car statement) 'return)) (return-parse (parameter1 statement) M-state))
       ((and (eq? (car statement) 'if) (eq? (length statement) 4)) (if-else-parse (parameter1 statement) (parameter2 statement) (parameter3 statement) M-state))
-      ((and (eq? (car statement) 'if) (eq? (length statement) 3)) (if-parse (parameter1 statement) (parameter2 statement) M-state))
       ((and (eq? (car statement) 'while)) (while-parse (cadr statement) (caddr statement) M-state))
       (else (error 'invalid-statement)))))
 
 (define read-parse-tree
   (lambda (parse-tree M-state)
-    ;(display M-state) (newline)
+    (display M-state) (newline)
     (cond
-      ((null? parse-tree) M-state)
+      ((null? parse-tree) 'end)
       ((list? (car parse-tree)) (read-parse-tree (cdr parse-tree) (read-parse (car parse-tree) M-state)))
       (else (error 'invalid-statement)))))
 
@@ -112,21 +104,18 @@
   (lambda (expression state)
     (if (atom? expression)
         (cond
-          ((integer? expression) (return-parse-cleanup expression state))
+          ((integer? expression) (return-parse-cleanup expression))
           ((number? expression) (return-parse-cleanup expression))
-          (else (return-parse-cleanup (get-var-value state expression) state)))
-        (return-parse-cleanup (M-eval expression state) state))))
+          (else (return-parse-cleanup (get-var-value state expression))))
+        (return-parse-cleanup (M-eval expression state)))))
 
 (define return-parse-cleanup
-  (lambda (output state)
+  (lambda (output)
     (cond
       ((integer? output) output)
       ((number? output) (exact-floor output))
       ((eq? output #f) 'false)
       ((eq? output #t) 'true)
-      ((and (atom? output) (not (or (number? output) (contains? output forbidden-characters)))) (if (check-var state output)
-                                                                                                                (car (myreplace output (get-var-value state output) (list output)))
-                                                                                                                (error 'undefined-variable)))
       (else (error 'bad-output)))))
 
 (define assign-parse
@@ -146,12 +135,6 @@
     (if (M-eval cdal state)
         (read-parse body state)
         (read-parse else-statement state))))
-
-(define if-parse
-  (lambda (cdal body state)
-    (if (M-eval cdal state)
-        (read-parse body state)
-        state)))
 
 (define while-parse
   (lambda (cdal body state)
