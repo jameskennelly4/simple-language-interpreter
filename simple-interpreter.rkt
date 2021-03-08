@@ -2,12 +2,19 @@
 
 (require "simpleParser.rkt")
 
-(define forbidden-characters '(+ - / * % == != < <= > >= && || !))
+; atoms that are not allowed to be variables
+(define forbidden-characters '(+ - / * % == != < <= > >= && || !)) 
 
+; FUNCTION: takes a filename, calls parser with the filename, evaluates the syntax tree returned by parser, and returns the proper value
+; INPUT: file with Java/C-ish code
+; OUTPUT: value
 (define interpret
   (lambda (filename)
    (read-syntax-tree (parser filename) create-new-state)))
 
+; FUNCTION: takes in syntax tree and runs through each statement. returns the proper value
+; INPUT: parse tree
+; OUTPUT: proper value
 (define read-syntax-tree
   (lambda (parse-tree state)
     (cond
@@ -15,6 +22,9 @@
       ((list? (car parse-tree)) (read-syntax-tree (cdr parse-tree) (read-statement (car parse-tree) state)))
       (else (error 'invalid-statement)))))
 
+; FUNCTION: takes in a statement from the parse tree and evaluates it
+; INPUT: statement
+; OUTPUT: result of evaluated statement
 (define read-statement
   (lambda (statement state)
     (cond
@@ -28,26 +38,30 @@
       ((and (eq? (car statement) 'while))                          (M-state-while (parameter1 statement) (parameter2 statement) state))
       (else                                                        (error 'invalid-statement)))))
 
+; FUNCTION: returns second element of a list
+; INPUT: expression
+; OUTPUT: second element of the expression
 (define parameter1
   (lambda (expression)
     (cadr expression)))
 
+; FUNCTION: returns third element of a list
+; INPUT: expression
+; OUTPUT: third element of the expression
 (define parameter2
   (lambda (expression)
     (caddr expression)))
 
+; FUNCTION: returns fourth element of a list
+; INPUT: expression
+; OUTPUT: fourth element of the expression
 (define parameter3
   (lambda (expression)
     (cadddr expression)))
 
-(define atom?
-  (lambda (x)
-    (not (or (pair? x) (null? x)))))
-
-(define variable?
-  (lambda (x)
-    (and (atom? x) (not (or (number? x) (contains? x forbidden-characters) (eq? x 'true) (eq? x 'false))))))
-
+; FUNCTION: evaluates the return statement
+; INPUT: return statement and current state
+; OUTPUT: updated state
 (define M-state-return
   (lambda (expression state)
     (if (atom? expression)
@@ -59,6 +73,23 @@
                     (M-state-return-cleanup (get-var-value expression state) state))))
         (M-state-return-cleanup (M-value expression state) state))))
 
+; FUNCTION: checks if input is an atom
+; INPUT: x
+; OUTPUT: boolean
+(define atom?
+  (lambda (x)
+    (not (or (pair? x) (null? x)))))
+
+; FUNCTION: checks if input is a variable
+; INPUT: x
+; OUTPUT: boolean
+(define variable?
+  (lambda (x)
+    (and (atom? x) (not (or (number? x) (contains? x forbidden-characters) (eq? x 'true) (eq? x 'false))))))
+
+; FUNCTION: takes return value and checks that it is an integer or boolean
+; INPUT: return value and state
+; OUTPUT: proper return value
 (define M-state-return-cleanup
   (lambda (output state)
     (cond
@@ -71,36 +102,57 @@
                               (error 'undefined-variable)))
       (else (error 'bad-output)))))
 
+; FUNCTION: evaluates the assign statement
+; INPUT: assign statement and current state
+; OUTPUT: updated state
 (define M-state-assign
   (lambda (var expression state)
     (update-value var (M-value expression state) state)))
 
+; FUNCTION: evaluates the one parameter variable declaration statement
+; INPUT: one parameter variable declaration statement and current state
+; OUTPUT: updated state
 (define M-state-var-define
   (lambda (var value state)
     (add-binding-pair var (M-value value state) state)))
 
+; FUNCTION: evaluates the two parameter variable declaration statement
+; INPUT: two parameter variable declaration statement and current state
+; OUTPUT: updated state
 (define M-state-var-initialize
   (lambda (var state)
     (add-binding-pair-var-only var state)))
 
+; FUNCTION: evaluates the three parameter if statement
+; INPUT: three parameter if statement and current state
+; OUTPUT: updated state
 (define M-state-if-else
   (lambda (cdal body else-statement state)
     (if (M-value cdal state)
         (read-statement body state)
         (read-statement else-statement state))))
 
+; FUNCTION: evaluates the two parameter if statement
+; INPUT: two parameter if statement and current state
+; OUTPUT: updated state
 (define M-state-if
   (lambda (cdal body state)
     (if (M-value cdal state)
         (read-statement body state)
         state)))
 
+; FUNCTION: evaluates the while statement
+; INPUT: while statement and current state
+; OUTPUT: updated state
 (define M-state-while
   (lambda (cdal body state)
     (if (M-value cdal state)
         (M-state-while cdal body (read-statement body state))
         state)))
 
+; FUNCTION: evaluates the value of any expression containing numbers and variables
+; INPUT: expression and current state
+; OUTPUT: updated state
 (define M-value
   (lambda (expression state)
     (cond
@@ -126,10 +178,16 @@
       ((eq? (operator expression) '!)      (not (M-value (leftoperand expression state) state)))
       (else (error 'bad-operator)))))
 
+; FUNCTION: finds the operator of expression in prefix notation
+; INPUT: expression
+; OUTPUT: operator
 (define operator
   (lambda (expression)
     (car expression)))
 
+; FUNCTION: returns the left-hand side of expression
+; INPUT: expression
+; OUTPUT: left-hand side of expression
 (define leftoperand
   (lambda (expression state)
     (cond
@@ -141,6 +199,9 @@
                                                                                                      (error 'undefined-variable)))
       (else (cadr expression)))))
 
+; FUNCTION: returns the right-hand side of expression
+; INPUT: expression
+; OUTPUT: right-hand side of expression
 (define rightoperand
   (lambda (expression state)
     (cond
@@ -152,6 +213,9 @@
                                                                                                      (error 'undefined-variable)))
       (else (caddr expression)))))
 
+; FUNCTION: checks if list contains x
+; INPUT: x
+; OUTPUT: boolean
 (define contains?
   (lambda (x lis)
     (cond
@@ -159,6 +223,9 @@
       ((eq? lis x) #t)
       (else (contains? x (cdr lis))))))
 
+; FUNCTION: replaces all instances of a with b in list
+; INPUT: a, b, list
+; OUTPUT: updated list
 (define myreplace
   (lambda (a b lis)
     (cond
