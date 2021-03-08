@@ -47,13 +47,12 @@
   (lambda (parse-tree)
     (cond
       ((null? parse-tree) 'end)
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'var)) (print-output 'var-parse) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) '=)) (print-output 'assign-parse) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'return)) (print-output 'return-parse) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'if)) (print-output 'if-parse) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'while)) (print-output 'while-parse) (read-parse-tree (cdr parse-tree)))
+      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'var)) (var-parse) (read-parse-tree (cdr parse-tree)))
+      ((and (list? (car parse-tree)) (eq? (caar parse-tree) '=)) (assign-parse (cadar parse-tree) (cddar parse-tree)) (read-parse-tree (cdr parse-tree)))
+      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'return)) (return-parse (cadar parse-tree)) (read-parse-tree (cdr parse-tree)))
+      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'if)) (if-parse) (read-parse-tree (cdr parse-tree)))
+      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'while)) (while-parse (cadar parse-tree) (cddar parse-tree) (read-parse-tree (cdr parse-tree))))
       (else (read-parse-tree (cdr parse-tree))))))
-
 
 (define print-output
   (lambda (out)
