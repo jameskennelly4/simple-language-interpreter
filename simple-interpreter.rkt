@@ -28,6 +28,7 @@
       ((and (eq? (car statement) 'while))                          (M-state-while (parameter1 statement) (parameter2 statement) state))
       (else                                                        (error 'invalid-statement)))))
 
+; barry test
 (define parameter1
   (lambda (expression)
     (cadr expression)))
@@ -36,7 +37,6 @@
   (lambda (expression)
     (caddr expression)))
 
-;James Kennelly
 (define parameter3
   (lambda (expression)
     (cadddr expression)))
