@@ -36,19 +36,39 @@
   (lambda (expression)
     (caddr expression)))
 
+(define parameter1
+  (lambda (expression)
+    (cadr expression)))
+
+(define parameter2
+  (lambda (expression)
+    (caddr expression)))
+
+(define parameter3
+  (lambda (expression)
+    (cadddr expression)))
+
+(define read-parse
+  (lambda (statement M-state)
+    (display M-state) (newline)
+    (cond
+      ((null? statement) 'end)
+      ((and (eq? (car statement) 'var) (eq? (length statement) 3)) (var-define-parse (parameter1 statement) (parameter2 statement) M-state))
+      ((and (eq? (car statement) 'var) (eq? (length statement) 2)) (var-initialize-parse (parameter1 statement) M-state))
+      ((and (eq? (car statement) '=)) (assign-parse (parameter1 statement) (parameter2 statement) M-state))
+      ((and (eq? (car statement) 'return)) (return-parse (parameter1 statement) M-state))
+      ((and (eq? (car statement) 'if) (eq? (length (car statement) 4))) (if-else-parse (parameter1 statement) (parameter2 statement) (parameter3 statement) M-state))
+      ((and (eq? (car statement) 'if) (eq? (length (car statement) 3))) (if-parse (parameter1 statement) (parameter2 statement) M-state))
+      ((and (eq? (car statement) 'while)) (while-parse (cadar statement) (cddar statement) M-state))
+      (else (error 'invalid-statement)))))
 
 (define read-parse-tree
   (lambda (parse-tree M-state)
+    (display M-state) (newline)
     (cond
       ((null? parse-tree) 'end)
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'var) (eq? (length (car parse-tree) 3))) (var-define-parse (cadar parse-tree) (cddar parse-tree) M-state) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'var) (eq? (length (car parse-tree) 2))) (var-initialize-parse (cadar parse-tree) M-state) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) '=)) (assign-parse (cadar parse-tree) (cddar parse-tree) M-state) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'return)) (return-parse (cadar parse-tree) M-state) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'if) (eq? (length (car parse-tree) 4))) (if-else-parse (cadar parse-tree) (caddar parse-tree) (cdddar parse-tree) M-state) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'if) (eq? (length (car parse-tree) 3))) (if-parse (cadar parse-tree) (cddar parse-tree) M-state) (read-parse-tree (cdr parse-tree)))
-      ((and (list? (car parse-tree)) (eq? (caar parse-tree) 'while)) (while-parse (cadar parse-tree) (cddar parse-tree) M-state) (read-parse-tree (cdr parse-tree)))
-      (else (read-parse-tree (cdr parse-tree))))))
+      ((list? (car parse-tree)) (read-parse-tree (cdr parse-tree) (read-parse (car parse-tree) M-state)))
+      (else (error 'invalid-statement)))))
 
 (define return-parse
   (lambda (expression)
@@ -66,11 +86,12 @@
 (define assign-parse
   (lambda (var expression state)
     ;replace all vars with their values
-    (add-binding-pair state var (M-eval expression))))
+    ;check that var exists
+    (replace-old-value state var (M-eval expression))))
 
 (define var-define-parse
   (lambda (var value state)
-    (add-binding-pair state var value)))
+    (add-binding-pair state var (M-eval value))))
 
 (define var-initialize-parse
   (lambda (var state)
@@ -136,5 +157,38 @@
 (define replace-old-value
   (lambda (pairs var val)
     (cond ((null? pairs)                  error 'error)
+          ((and (eq? (length (car pairs)) 1) (eq? var (car (car pairs)))) (cons (append (car pairs) (list val)) (cdr pairs)))
           ((equal? (car (car pairs)) var) (cons (list var val) (cdr pairs)))
           (else                           (cons (car pairs) (replace-old-value (cdr pairs) var val))))))
+
+(define get-all-values
+  (lambda (expression lis state)
+    (cond
+      ((null? expression) lis)
+      ((number? (car expression)) (get-all-values (cdr expression) lis state))
+      ((list? (car expression)) (begin (get-all-values (car expression) lis state) (get-all-values (cdr expression) lis state)))
+      ((eq? (car expression) '+) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '-) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '*) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '/) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '%) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '==) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '!=) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '<=) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '<) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '>=) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '>) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '&&) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '||) (get-all-values (cdr expression) lis state))
+      ((eq? (car expression) '!) (get-all-values (cdr expression) lis state))
+      (else (if (check-var state (car expression))
+                (get-all-values (replaceall* (car expression) (get-var-value state (car expression)) lis) (replaceall* (car expression) (get-var-value state (car expression)) lis) state)
+                (error 'undefined-variable))))))
+
+(define replaceall*
+  (lambda (a b lis1)
+    (cond
+      ((null? lis1) '())
+      ((eq? a (car lis1)) (cons b (replaceall* a b (cdr lis1))))
+      ((list? (car lis1)) (cons (replaceall* a b (car lis1)) (replaceall* a b (cdr lis1))))
+      (else (cons (car lis1) (replaceall* a b (cdr lis1)))))))
