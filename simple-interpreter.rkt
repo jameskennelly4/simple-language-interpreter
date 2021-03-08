@@ -84,8 +84,7 @@
       ((and (eq? (car statement) 'var) (eq? (length statement) 2)) (var-initialize-parse (parameter1 statement) M-state))
       ((and (eq? (car statement) '=)) (assign-parse (parameter1 statement) (parameter2 statement) M-state))
       ((and (eq? (car statement) 'return)) (return-parse (parameter1 statement) M-state))
-      ((and (eq? (car statement) 'if) (eq? (length (car statement) 4))) (if-else-parse (parameter1 statement) (parameter2 statement) (parameter3 statement) M-state))
-      ((and (eq? (car statement) 'if) (eq? (length (car statement) 3))) (if-parse (parameter1 statement) (parameter2 statement) M-state))
+      ((and (eq? (car statement) 'if) (eq? (length statement) 4)) (if-else-parse (parameter1 statement) (parameter2 statement) (parameter3 statement) M-state))
       ((and (eq? (car statement) 'while)) (while-parse (cadr statement) (caddr statement) M-state))
       (else (error 'invalid-statement)))))
 
@@ -121,8 +120,6 @@
 
 (define assign-parse
   (lambda (var expression state)
-    ;replace all vars with their values
-    ;check that var exists
     (replace-old-value state var (M-eval expression state))))
 
 (define var-define-parse
@@ -133,17 +130,11 @@
   (lambda (var state)
     (add-binding-pair-var-only state var)))
 
-(define if-parse
-  (lambda (conditional body state)
-    (if (M-eval conditional state)
-        (read-parse-tree body)
-        #f)))
-
 (define if-else-parse
   (lambda (cdal body else-statement state)
     (if (M-eval cdal state)
-        (read-parse-tree body state)
-        (read-parse-tree else-statement state))))
+        (read-parse body state)
+        (read-parse else-statement state))))
 
 (define while-parse
   (lambda (cdal body state)
