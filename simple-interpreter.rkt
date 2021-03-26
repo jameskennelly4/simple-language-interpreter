@@ -167,7 +167,7 @@
       ((boolean? expression) expression)
       ((variable? expression) (if (check-var expression state)
                                   (car (myreplace (list expression) (get-var-value expression state) (list expression)))
-                                  (error 'undefined-variable)))
+                                  (error 'unassigned-variable)))
       ((eq? (operator expression) '+)      (+ (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state)))
       ((and (eq? (operator expression) '-) (eq? (length expression) 3) (- (M-value (leftoperand expression state) state) (M-value (rightoperand expression state) state))))
       ((and (eq? (operator expression) '-) (eq? (length expression) 2) (- 0 (M-value (leftoperand expression state) state))))
@@ -253,7 +253,7 @@
 ;OUTPUT: the list that results from adding the binding pair
 (define add-binding-pair
   (lambda (var val state)
-    (cons (list var val) state)))
+    (cons (list var (box val)) state)))
 
 ;FUNCTION: check if the variable is in the binding pairs list
 ;INPUT: a list and variable
@@ -271,8 +271,8 @@
   (lambda (var state)
     (cond ((null? state)                                                        error 'error)
           ((and (equal? 1 (length (car state))) (equal? (car (car state)) var)) error 'undeclared-variable)
-          ((equal? (car (car state)) var)                                       (cadr (car state)))
-          (else                                                                 (get-var-value var (cdr state)))))) 
+          ((equal? (car (car state)) var)                                       (unbox (cadr (car state))))
+          (else                                                                 (get-var-value var (cdr state))))))
 
 ;FUNCTION: update an old value bound with an existing variable or unassigned variable to a new value
 ;INPUT : a list, exisiting variable, and new value
@@ -281,10 +281,10 @@
   (lambda (var val state)
     (cond ((null? state)                     error 'error)
           ((eq? var val)                     state)
-          ((and (eq? (length (car state)) 1) (eq? var (car (car state)))) (cons (append (car state) (list val)) (cdr state)))
-          ((equal? (car (car state)) var)    (cons (list var val) (cdr state)))
+          ((and (eq? (length (car state)) 1) (eq? var (car (car state)))) (cons (append (car state) (list (box val))) (cdr state)))
+          ((equal? (car (car state)) var)    (cons (list var (box val)) (cdr state)))
           (else                              (cons (car state) (update-value var val (cdr state)))))))
 
 ;FUNCTION: creates a new state with a default reutn value of 0
 ;OUTPUT: a new state
-(define create-new-state '((return-value 0)))
+(define create-new-state '((return-value (box 0))))
