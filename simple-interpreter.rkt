@@ -80,6 +80,7 @@
       ((and (eq? (car statement) 'break))
        state)
       ((and (eq? (car statement) 'continue))
+       ;should jump to top of while loop with current state
        state)
       ((and (eq? (car statement) 'throw))
        (M-state-return (parameter1 statement) state))
