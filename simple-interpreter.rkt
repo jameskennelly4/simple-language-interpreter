@@ -213,6 +213,18 @@
      (lambda (k)
        (M-state-while-break cdal body state k)))))
 
+;CPS style attempt for M-state-while
+;(define M-state-while
+;  (lambda (cdal body state next oldbreak)
+;    (loop cdal body state next (lambda (state1) (next state1)))))
+
+;(define loop
+;  (lambda (cdal body state next break)
+;    (if (M-value cdal state)
+;       (read-statement body state (lambda (state1) (loop cdal body state1 next break)) break)
+;        (next state))))
+
+;CPS style attempt for M-state-try-catch
 (define M-state-try-catch
   (lambda (tryblock catchblock finallyblock state next break throw)
     (read-statement tryblock state (lambda (state1)
