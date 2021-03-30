@@ -190,6 +190,39 @@
      (lambda (k)
        (M-state-while-break cdal body state k)))))
 
+(define M-state-try-catch
+  (lambda (tryblock catchblock finallyblock state)
+    (call/cc
+     (lambda (k)
+       (M-state-try-throw (tryblock catchblock finallyblock state throw))))))
+
+(define M-state-try-catch-throw
+  (lambda (tryblock catchblock finallyblock state throw)
+    (
+        
+
+(define M-state-try-catch
+  (lambda (tryblock catchblock finallyblock state next break throw)
+    (read-statement tryblock state finally-cont new-break my-throw)))
+
+(define M-state-try-catch
+  (lambda (tryblock catchblock finallyblock state next break throw)
+    (read-statement tryblock state (lambda (state1) (read-statement finallyblock state1 next break throw))
+                                   (lambda (state1) (read-statement finallyblock state break break throw))
+                                   (lambda (state1) (read-statement catchblock finally-cont new-break new-throw)))
+     
+(define new-break
+  (lambda state
+    (read-statement finallyblock state break break throw)))
+
+(define finally-cont
+  (lambda state
+    (read-statement finallyblock state next break throw)))
+
+(define my-throw
+  (lambda (state)
+    (read-statement catchblock finally-cont new-break new-throw)))
+
 ;(define M-state-begin
 ;  (lambda (body state)
 ;    (read-syntax-tree-no-return (cdr body) (read-statement (car body) (cons state create-new-state)))))
@@ -385,3 +418,5 @@
 ;(define create-new-state '((return-value (box 0))))
 
 (define create-new-state (list (cons 'return-value (list (box 0)))))
+
+'((var x) (try ((= x 20) (if (< x 0) (throw 10)) (= x (+ x 5))) (catch (e) ((= x e))) (finally ((= x (+ x 100))))) (return x))
