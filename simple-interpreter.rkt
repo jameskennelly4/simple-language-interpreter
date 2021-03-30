@@ -194,37 +194,13 @@
        (M-state-while-break cdal body state k)))))
 
 (define M-state-try-catch
-  (lambda (tryblock catchblock finallyblock state)
-    (call/cc
-     (lambda (k)
-       (M-state-try-throw (tryblock catchblock finallyblock state throw))))))
-
-(define M-state-try-catch-throw
-  (lambda (tryblock catchblock finallyblock state throw)
-    ()))
-        
-
-(define M-state-try-catch
-  (lambda (tryblock catchblock finallyblock state next break throw)
-    (read-statement tryblock state finally-cont new-break my-throw)))
-
-(define M-state-try-catch
   (lambda (tryblock catchblock finallyblock state next break throw)
     (read-statement tryblock state (lambda (state1) (read-statement finallyblock state1 next break throw))
                                    (lambda (state1) (read-statement finallyblock state break break throw))
-                                   (lambda (state1) (read-statement catchblock finally-cont new-break new-throw)))))
-     
-(define new-break
-  (lambda state
-    (read-statement finallyblock state break break throw)))
-
-(define finally-cont
-  (lambda state
-    (read-statement finallyblock state next break throw)))
-
-(define my-throw
-  (lambda (state)
-    (read-statement catchblock finally-cont new-break new-throw)))
+                                   (lambda (state1) (read-statement catchblock state1
+                                                                    (lambda (state1) (read-statement finallyblock state1 next break throw))
+                                                                    (lambda (state1) (read-statement finallyblock state1 break break throw))
+                                                                    (lambda (state1) (read-statement finallyblock state1 throw break throw)))))))
 
 ;(define M-state-begin
 ;  (lambda (body state)
