@@ -27,9 +27,16 @@
 
 (define read-syntax-tree-no-return
   (lambda (parse-tree state)
+    (call/cc
+     (lambda (k)
+       (read-syntax-tree-no-return-break parse-tree state k)))))
+
+(define read-syntax-tree-no-return-break
+  (lambda (parse-tree state break)
     (cond
+      ((eq? (caar parse-tree) 'break) (break state))
       ((null? parse-tree) state)
-      ((list? (car parse-tree)) (read-syntax-tree-no-return (cdr parse-tree) (read-statement (car parse-tree) state)))
+      ((list? (car parse-tree)) (read-syntax-tree-no-return-break (cdr parse-tree) (read-statement (car parse-tree) state) break))
       (else (error 'invalid-statement)))))
 
 ; FUNCTION: takes in a statement from the parse tree and evaluates it
@@ -47,6 +54,9 @@
       ((and (eq? (car statement) 'if) (eq? (length statement) 3))  (M-state-if (parameter1 statement) (parameter2 statement) state))
       ((and (eq? (car statement) 'while))                          (M-state-while (parameter1 statement) (parameter2 statement) state))
       ((and (eq? (car statement) 'begin))                          (M-state-begin (cdr statement) state))
+      ((and (eq? (car statement) 'break))                          (M-state-while (parameter1 statement) (parameter2 statement) state))
+      ((and (eq? (car statement) 'continue))                       (M-state-while (parameter1 statement) (parameter2 statement) state))
+      ((and (eq? (car statement) 'throw))                          (M-state-return (parameter1 statement) state))
       (else                                                        (error 'invalid-statement)))))
 
 ; FUNCTION: returns second element of a list
@@ -160,11 +170,18 @@
 ; FUNCTION: evaluates the while statement
 ; INPUT: while statement and current state
 ; OUTPUT: updated state
+(define M-state-while-break
+  (lambda (cdal body state break)
+    (cond
+      ((eq? (car body) 'break) (break state))
+      ((M-value cdal state) (M-state-while-break cdal body (read-statement body state) break))
+      (else state))))
+
 (define M-state-while
   (lambda (cdal body state)
-    (if (M-value cdal state)
-        (M-state-while cdal body (read-statement body state))
-        state)))
+    (call/cc
+     (lambda (k)
+       (M-state-while-break cdal body state k)))))
 
 ;(define M-state-begin
 ;  (lambda (body state)
