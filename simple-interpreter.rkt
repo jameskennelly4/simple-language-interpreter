@@ -16,7 +16,7 @@
    (read-syntax-tree (parser filename) create-new-state)))
 
 ; FUNCTION: takes in syntax tree and runs through each statement. returns the proper value
-; INPUT: parse tree
+; INPUT: parse tree and current state
 ; OUTPUT: proper value
 (define read-syntax-tree
   (lambda (parse-tree state)
@@ -25,6 +25,9 @@
       ((list? (car parse-tree)) (read-syntax-tree (cdr parse-tree) (read-statement (car parse-tree) state)))
       (else (error 'invalid-statement)))))
 
+; FUNCTION: takes in syntax tree and runs through each statement. returns the current staqte at the end
+; INPUT: parse tree and current state
+; OUTPUT: current state
 (define read-syntax-tree-no-return
   (lambda (parse-tree state)
     (cond
@@ -198,7 +201,7 @@
 
 (define M-state-try-catch-throw
   (lambda (tryblock catchblock finallyblock state throw)
-    (
+    ()))
         
 
 (define M-state-try-catch
@@ -209,7 +212,7 @@
   (lambda (tryblock catchblock finallyblock state next break throw)
     (read-statement tryblock state (lambda (state1) (read-statement finallyblock state1 next break throw))
                                    (lambda (state1) (read-statement finallyblock state break break throw))
-                                   (lambda (state1) (read-statement catchblock finally-cont new-break new-throw)))
+                                   (lambda (state1) (read-statement catchblock finally-cont new-break new-throw)))))
      
 (define new-break
   (lambda state
@@ -227,10 +230,16 @@
 ;  (lambda (body state)
 ;    (read-syntax-tree-no-return (cdr body) (read-statement (car body) (cons state create-new-state)))))
 
+; FUNCTION: evaluates the begin statement
+; INPUT: begin statement and the current state
+; OUTPUT: updated state
 (define M-state-begin
   (lambda (body state)
     (update-global-state state (read-syntax-tree-no-return (cdr body) (read-statement (car body) state)))))
 
+; FUNCTION: helper funciton to update global state based on local state
+; INPUT: initial global state and updated local state
+; OUTPUT: updated global state
 (define update-global-state
   (lambda (global-state local-state)
     (display global-state) (newline)
@@ -245,7 +254,6 @@
 ; OUTPUT: updated state
 (define M-value
   (lambda (expression state)
-    ;(display state)
     (cond
       ((number? expression) expression)
       ((boolean? expression) expression)
@@ -305,16 +313,8 @@
       (else (caddr expression)))))
 
 ; FUNCTION: checks if list contains x
-; INPUT: x
+; INPUT: x, list and a return and break continuation
 ; OUTPUT: boolean
-;(define contains?
-;  (lambda (x lis)
-;    (cond
-;      ((null? lis) #f)
-;      ((eq? (car lis) x) #t)
-;      ((list? (car lis)) (contains? x (car lis)) (contains? x (cdr lis)))
-;      (else (contains? x (cdr lis))))))
-
 (define contains?-break
   (lambda (x lis return break)
     (cond
@@ -323,6 +323,9 @@
       ((list? (car lis)) (contains?-break x (car lis) (lambda (v) (contains?-break x (cdr lis) return break)) break))
       (else (contains?-break x (cdr lis) return break)))))
 
+; FUNCTION: parent function for contains-break
+; INPUT: x and a list
+; OUTPUT: boolean
 (define contains?
   (lambda (x lis)
     (contains?-break x lis (lambda (v) v) (lambda (v) v))))
@@ -362,6 +365,9 @@
 ;          ((list? (car (car state)))      (check-var var (car state)) (check-var var (cdr state)))
 ;          (else                           (check-var var (cdr state))))))
 
+;FUNCTION: check if the variable is in the binding pairs list
+;INPUT: a list and variable and a return continuation
+;OUTPUT: true if the variable is in the list and false if it is not
 (define check-var-return
   (lambda (var state return)
     (cond ((null? state)                  (return #f))
@@ -369,6 +375,9 @@
           ((list? (car (car state)))      (check-var-return var (cdr state) (lambda (v) (check-var-return var (car state) return))))
           (else                           (check-var-return var (cdr state) return)))))
 
+;FUNCTION: parent function for check-var-return
+;INPUT: a list and variable
+;OUTPUT: true if the variable is in the list and false if it is not
 (define check-var
   (lambda (var state)
     (check-var-return var state (lambda (v) v))))
@@ -384,9 +393,11 @@
 ;          ((equal? (car (car state)) var)                                       (unbox (cadr (car state))))
 ;          (else                                                                 (get-var-value var (cdr state))))))
 
+;FUNCTION: gets value of variable from the list of binding pairs
+;INPUT: a list and a variable and a return continuation
+;OUTPUT: the value bound to the variable
 (define get-var-value-return
   (lambda (var state return)
-    ;(display state)
     (cond ((null? state)                                                        (return (error 'error)))
           ((and (equal? 1 (length (car state))) (equal? (car (car state)) var)) (return (error 'undeclared-variable)))
           ((number? var)                                                        (return var))
@@ -394,6 +405,9 @@
           ((list? (caar state))                                                 (get-var-value-return var (car state) return))
           (else                                                                 (get-var-value-return var (cdr state) return)))))
 
+;FUNCTION: parent function of get-var-value-return
+;INPUT: a list and a variable
+;OUTPUT: the value bound to the variable
 (define get-var-value
   (lambda (var state)
     (get-var-value-return var state (lambda (v) v))))
@@ -404,7 +418,6 @@
 ;OUTPUT: the list that results from updating the variable's value
 (define update-value
   (lambda (var val state state2)
-    ;(display 'state) (newline) (display state) (newline) (display 'state2) (newline) (display state2) (newline)
     (cond ((null? state)                      state)
           ((eq? var val)                      state)
           ((and (eq? (length (car state)) 1)  (eq? var (car (car state)))) (cons (append (car state) (list (box val))) (cdr state)))
@@ -418,5 +431,3 @@
 ;(define create-new-state '((return-value (box 0))))
 
 (define create-new-state (list (cons 'return-value (list (box 0)))))
-
-'((var x) (try ((= x 20) (if (< x 0) (throw 10)) (= x (+ x 5))) (catch (e) ((= x e))) (finally ((= x (+ x 100))))) (return x))
