@@ -27,17 +27,24 @@
 
 (define read-syntax-tree-no-return
   (lambda (parse-tree state)
-    (call/cc
-     (lambda (k)
-       (read-syntax-tree-no-return-break parse-tree state k)))))
-
-(define read-syntax-tree-no-return-break
-  (lambda (parse-tree state break)
     (cond
-      ((eq? (caar parse-tree) 'break) (break state))
       ((null? parse-tree) state)
-      ((list? (car parse-tree)) (read-syntax-tree-no-return-break (cdr parse-tree) (read-statement (car parse-tree) state) break))
+      ((list? (car parse-tree)) (read-syntax-tree-no-return (cdr parse-tree) (read-statement (car parse-tree) state)))
       (else (error 'invalid-statement)))))
+
+;(define read-syntax-tree-no-return
+;  (lambda (parse-tree state)
+;    (call/cc
+;     (lambda (k)
+;       (read-syntax-tree-no-return-break parse-tree state k)))))
+
+;(define read-syntax-tree-no-return-break
+;  (lambda (parse-tree state break)
+;   (cond
+;      ((eq? (caar parse-tree) 'break) (break state))
+;     ((null? parse-tree) state)
+;     ((list? (car parse-tree)) (read-syntax-tree-no-return-break (cdr parse-tree) (read-statement (car parse-tree) state) break))
+;     (else (error 'invalid-statement)))))
 
 ; FUNCTION: takes in a statement from the parse tree and evaluates it
 ; INPUT: statement
@@ -54,8 +61,8 @@
       ((and (eq? (car statement) 'if) (eq? (length statement) 3))  (M-state-if (parameter1 statement) (parameter2 statement) state))
       ((and (eq? (car statement) 'while))                          (M-state-while (parameter1 statement) (parameter2 statement) state))
       ((and (eq? (car statement) 'begin))                          (M-state-begin (cdr statement) state))
-      ((and (eq? (car statement) 'break))                          (M-state-while (parameter1 statement) (parameter2 statement) state))
-      ((and (eq? (car statement) 'continue))                       (M-state-while (parameter1 statement) (parameter2 statement) state))
+      ((and (eq? (car statement) 'break))                          state)
+      ((and (eq? (car statement) 'continue))                       state)
       ((and (eq? (car statement) 'throw))                          (M-state-return (parameter1 statement) state))
       (else                                                        (error 'invalid-statement)))))
 
