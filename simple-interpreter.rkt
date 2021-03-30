@@ -25,6 +25,13 @@
       ((list? (car parse-tree)) (read-syntax-tree (cdr parse-tree) (read-statement (car parse-tree) state)))
       (else (error 'invalid-statement)))))
 
+(define read-syntax-tree-no-return
+  (lambda (parse-tree state)
+    (cond
+      ((null? parse-tree) state)
+      ((list? (car parse-tree)) (read-syntax-tree-no-return (cdr parse-tree) (read-statement (car parse-tree) state)))
+      (else (error 'invalid-statement)))))
+
 ; FUNCTION: takes in a statement from the parse tree and evaluates it
 ; INPUT: statement
 ; OUTPUT: result of evaluated statement
@@ -39,6 +46,7 @@
       ((and (eq? (car statement) 'if) (eq? (length statement) 4))  (M-state-if-else (parameter1 statement) (parameter2 statement) (parameter3 statement) state))
       ((and (eq? (car statement) 'if) (eq? (length statement) 3))  (M-state-if (parameter1 statement) (parameter2 statement) state))
       ((and (eq? (car statement) 'while))                          (M-state-while (parameter1 statement) (parameter2 statement) state))
+      ((and (eq? (car statement) 'begin))                          (M-state-begin (cdr statement) state))
       (else                                                        (error 'invalid-statement)))))
 
 ; FUNCTION: returns second element of a list
@@ -95,13 +103,14 @@
 ; OUTPUT: proper return value
 (define M-state-return-cleanup
   (lambda (output state)
+    (display state) (newline)
     (cond
-      ((integer? output) (update-value 'return-value output state))
-      ((number? output) (exact-floor (update-value 'return-value output state)))
-      ((eq? output #f) (update-value 'return-value 'false state))
-      ((eq? output #t) (update-value 'return-value 'true state))
+      ((integer? output) (update-value 'return-value output state state))
+      ((number? output) (exact-floor (update-value 'return-value output state state)))
+      ((eq? output #f) (update-value 'return-value 'false state state))
+      ((eq? output #t) (update-value 'return-value 'true state state))
       ((variable? output) (if (check-var output state)
-                              (update-value 'return-value (car (myreplace output (get-var-value output state) (list output))) state)
+                              (update-value 'return-value (car (myreplace output (get-var-value output state) (list output))) state state)
                               (error 'undefined-variable)))
       (else (error 'bad-output)))))
 
@@ -111,7 +120,7 @@
 (define M-state-assign
   (lambda (var expression state)
     (if (check-var var state)
-        (update-value var (M-value expression state) state)
+        (update-value var (M-value expression state) state state)
         (error 'undefined-variable))))
 
 ; FUNCTION: evaluates the one parameter variable declaration statement
@@ -157,11 +166,29 @@
         (M-state-while cdal body (read-statement body state))
         state)))
 
+;(define M-state-begin
+;  (lambda (body state)
+;    (read-syntax-tree-no-return (cdr body) (read-statement (car body) (cons state create-new-state)))))
+
+(define M-state-begin
+  (lambda (body state)
+    (update-global-state state (read-syntax-tree-no-return (cdr body) (read-statement (car body) state)))))
+
+(define update-global-state
+  (lambda (global-state local-state)
+    (display global-state) (newline)
+    (cond
+      ((null? local-state) global-state)
+      ((contains? (caar local-state) global-state) (update-value (caar local-state) (cadar local-state) global-state global-state))
+      (else (update-global-state global-state (cdr local-state))))))
+
+
 ; FUNCTION: evaluates the value of any expression containing numbers and variables
 ; INPUT: expression and current state
 ; OUTPUT: updated state
 (define M-value
   (lambda (expression state)
+    ;(display state)
     (cond
       ((number? expression) expression)
       ((boolean? expression) expression)
@@ -223,12 +250,25 @@
 ; FUNCTION: checks if list contains x
 ; INPUT: x
 ; OUTPUT: boolean
+;(define contains?
+;  (lambda (x lis)
+;    (cond
+;      ((null? lis) #f)
+;      ((eq? (car lis) x) #t)
+;      ((list? (car lis)) (contains? x (car lis)) (contains? x (cdr lis)))
+;      (else (contains? x (cdr lis))))))
+
+(define contains?-break
+  (lambda (x lis return break)
+    (cond
+      ((null? lis) (return #f))
+      ((eq? (car lis) x) (break #t))
+      ((list? (car lis)) (contains?-break x (car lis) (lambda (v) (contains?-break x (cdr lis) return break)) break))
+      (else (contains?-break x (cdr lis) return break)))))
+
 (define contains?
   (lambda (x lis)
-    (cond
-      ((null? lis) #f)
-      ((eq? lis x) #t)
-      (else (contains? x (cdr lis))))))
+    (contains?-break x lis (lambda (v) v) (lambda (v) v))))
 
 ; FUNCTION: replaces all instances of a with b in list
 ; INPUT: a, b, list
@@ -258,33 +298,66 @@
 ;FUNCTION: check if the variable is in the binding pairs list
 ;INPUT: a list and variable
 ;OUTPUT: true if the variable is in the list and false if it is not
+;(define check-var
+;  (lambda (var state)
+;    (cond ((null? state)                  #f)
+;          ((equal? (car (car state)) var) #t)
+;          ((list? (car (car state)))      (check-var var (car state)) (check-var var (cdr state)))
+;          (else                           (check-var var (cdr state))))))
+
+(define check-var-return
+  (lambda (var state return)
+    (cond ((null? state)                  (return #f))
+          ((equal? (car (car state)) var) (return #t))
+          ((list? (car (car state)))      (check-var-return var (cdr state) (lambda (v) (check-var-return var (car state) return))))
+          (else                           (check-var-return var (cdr state) return)))))
+
 (define check-var
   (lambda (var state)
-    (cond ((null? state)                  #f)
-          ((equal? (car (car state)) var) #t)
-          (else                           (check-var var (cdr state))))))
+    (check-var-return var state (lambda (v) v))))
+
 
 ;FUNCTION: gets value of variable from the list of binding pairs
 ;INPUT: a list and a variable
 ;OUTPUT: the value bound to the variable
+;(define get-var-value
+;  (lambda (var state)
+;    (cond ((null? state)                                                        error 'error)
+;          ((and (equal? 1 (length (car state))) (equal? (car (car state)) var)) error 'undeclared-variable)
+;          ((equal? (car (car state)) var)                                       (unbox (cadr (car state))))
+;          (else                                                                 (get-var-value var (cdr state))))))
+
+(define get-var-value-return
+  (lambda (var state return)
+    ;(display state)
+    (cond ((null? state)                                                        (return (error 'error)))
+          ((and (equal? 1 (length (car state))) (equal? (car (car state)) var)) (return (error 'undeclared-variable)))
+          ((number? var)                                                        (return var))
+          ((equal? (caar state) var)                                            (return (unbox (cadr (car state)))))
+          ((list? (caar state))                                                 (get-var-value-return var (car state) return))
+          (else                                                                 (get-var-value-return var (cdr state) return)))))
+
 (define get-var-value
   (lambda (var state)
-    (cond ((null? state)                                                        error 'error)
-          ((and (equal? 1 (length (car state))) (equal? (car (car state)) var)) error 'undeclared-variable)
-          ((equal? (car (car state)) var)                                       (unbox (cadr (car state))))
-          (else                                                                 (get-var-value var (cdr state))))))
+    (get-var-value-return var state (lambda (v) v))))
+
 
 ;FUNCTION: update an old value bound with an existing variable or unassigned variable to a new value
 ;INPUT : a list, exisiting variable, and new value
 ;OUTPUT: the list that results from updating the variable's value
 (define update-value
-  (lambda (var val state)
-    (cond ((null? state)                     error 'error)
-          ((eq? var val)                     state)
-          ((and (eq? (length (car state)) 1) (eq? var (car (car state)))) (cons (append (car state) (list (box val))) (cdr state)))
-          ((equal? (car (car state)) var)    (cons (list var (box val)) (cdr state)))
-          (else                              (cons (car state) (update-value var val (cdr state)))))))
+  (lambda (var val state state2)
+    ;(display 'state) (newline) (display state) (newline) (display 'state2) (newline) (display state2) (newline)
+    (cond ((null? state)                      state)
+          ((eq? var val)                      state)
+          ((and (eq? (length (car state)) 1)  (eq? var (car (car state)))) (cons (append (car state) (list (box val))) (cdr state)))
+          ((equal? (caar state) var)          (cons (list var (box val)) (cdr state)))
+          ((variable? val)                    (cons (list var (get-var-value val state)) state))
+          ((list? (caar state))               (cons (update-value var val (car state) state2) (update-value var val (cdr state) state2)))
+          (else                               (cons (car state) (update-value var val (cdr state) state2))))))
 
 ;FUNCTION: creates a new state with a default reutn value of 0
 ;OUTPUT: a new state
-(define create-new-state '((return-value (box 0))))
+;(define create-new-state '((return-value (box 0))))
+
+(define create-new-state (list (cons 'return-value (list (box 0)))))
