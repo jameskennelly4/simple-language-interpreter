@@ -1,6 +1,6 @@
 ; If you are using scheme instead of racket, comment these two lines, uncomment the (load "simpleParser.scm") and comment the (require "simpleParser.rkt")
 #lang racket
-(require "simpleParser.rkt")
+(require "functionParser.rkt")
 ; (load "simpleParser.scm")
 
 
@@ -17,9 +17,53 @@
     (scheme->language
      (call/cc
       (lambda (return)
-        (interpret-statement-list (parser file) (newenvironment) return
+        (create-global-state (parser file) (newenvironment)))))))
+
+;
+(define create-global-state
+  (lambda (statement-list global-state)
+    (display global-state)
+    (display "\n")
+    (if (null? statement-list)
+        (run-main global-state)
+        (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state)))))
+
+;
+(define interpret-global-statement-list
+  (lambda (statement global-state)
+    (cond
+      ((eq? 'var (statement-type statement)) (declare-variable statement global-state))
+      ((eq? 'function (statement-type statement)) (declare-function statement global-state))
+      (else (myerror "Unknown global statement:" (statement-type global-state))))))
+
+;
+(define run-main
+  (lambda (global-state)
+    (display "\nglobal state created")))
+;   (interpret-main main-function-body global-state)
+
+; Adds a new variable binding to the global state
+(define declare-variable
+  (lambda (statement environment)
+    (if (exists-declare-value? statement)
+        (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment) environment)
+        (insert (get-declare-var statement) 'novalue environment))))
+
+
+; Adds a new variable binding to the global state
+(define declare-function
+  (lambda (statement global-state)
+    (insert (cadr statement) (cdr statement) global-state))) 
+
+
+; The main function.  Calls parser to get the parse tree and interprets it with a new environment.  The returned value is in the environment.
+(define interpret-main
+  (lambda (main-function-body global-state)
+    (call/cc
+      (lambda (return)
+        (interpret-statement-list main-function-body (newenvironment) return
                                   (lambda (env) (myerror "Break used outside of loop")) (lambda (env) (myerror "Continue used outside of loop"))
-                                  (lambda (v env) (myerror "Uncaught exception thrown"))))))))
+                                  (lambda (v env) (myerror "Uncaught exception thrown")))))))
 
 ; interprets a list of statements.  The environment from each statement is used for the next ones.
 ; Mstate (<statement><statement-list>, state) = Mstate(<statement-list>, Mstate(<statement>, state))
