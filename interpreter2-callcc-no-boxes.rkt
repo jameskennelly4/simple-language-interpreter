@@ -33,7 +33,7 @@
   (lambda (statement global-state)
     (cond
       ((eq? 'var (statement-type statement)) (declare-variable statement global-state))
-      ((eq? 'function (statement-type statement)) (declare-function statement global-state))
+      ((eq? 'function (statement-type statement)) (interpret-function statement global-state))
       (else (myerror "Unknown global statement:" (statement-type global-state))))))
 
 ;
@@ -51,9 +51,9 @@
 
 
 ; Adds a new variable binding to the global state
-(define declare-function
-  (lambda (statement global-state)
-    (insert (cadr statement) (cdr statement) global-state))) 
+;(define declare-function
+;  (lambda (statement global-state)
+;    (insert (cadr statement) (cdr statement) global-state))) 
 
 
 ; The main function.  Calls parser to get the parse tree and interprets it with a new environment.  The returned value is in the environment.
@@ -88,6 +88,7 @@
       ((eq? 'begin (statement-type statement)) (interpret-block statement environment return break continue throw))
       ((eq? 'throw (statement-type statement)) (interpret-throw statement environment throw))
       ((eq? 'try (statement-type statement)) (interpret-try statement environment return break continue throw))
+      ((eq? 'function (statement-type statement)) (interpret-function statement environment))
       (else (myerror "Unknown statement:" (statement-type statement))))))
 
 ; Calls the return continuation with the given expression value
@@ -189,6 +190,18 @@
       ((null? finally-statement) '(begin))
       ((not (eq? (statement-type finally-statement) 'finally)) (myerror "Incorrectly formatted finally block"))
       (else (cons 'begin (cadr finally-statement))))))
+
+; Function to interpret function declarations
+(define interpret-function
+  (lambda (statement environment)
+    (if (exists-declare-value? statement)
+        (insert (get-declare-var statement) (create-closure (operand2 statement) (operand3 statement) environment) environment)
+        (insert (get-declare-var statement) 'novalue environment))))
+
+; create closure helper method
+(define create-closure
+  (lambda (formal-params body environment)
+    (cons formal-params (cons body (cons environment '())))))
 
 ; Evaluates all possible boolean and arithmetic expressions, including constants and variables.
 (define eval-expression
