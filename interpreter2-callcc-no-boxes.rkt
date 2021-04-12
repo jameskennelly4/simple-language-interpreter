@@ -39,8 +39,7 @@
 ;
 (define run-main
   (lambda (global-state)
-    (display "\nglobal state created")))
-;   (interpret-main main-function-body global-state)
+    (interpret-main (cadr (lookup 'main global-state)) global-state)))
 
 ; Adds a new variable binding to the global state
 (define declare-variable
@@ -49,19 +48,12 @@
         (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment) environment)
         (insert (get-declare-var statement) 'novalue environment))))
 
-
-; Adds a new variable binding to the global state
-;(define declare-function
-;  (lambda (statement global-state)
-;    (insert (cadr statement) (cdr statement) global-state))) 
-
-
 ; The main function.  Calls parser to get the parse tree and interprets it with a new environment.  The returned value is in the environment.
 (define interpret-main
   (lambda (main-function-body global-state)
     (call/cc
       (lambda (return)
-        (interpret-statement-list main-function-body (newenvironment) return
+        (interpret-statement-list main-function-body global-state return
                                   (lambda (env) (myerror "Break used outside of loop")) (lambda (env) (myerror "Continue used outside of loop"))
                                   (lambda (v env) (myerror "Uncaught exception thrown")))))))
 
@@ -78,7 +70,7 @@
 (define interpret-statement
   (lambda (statement environment return break continue throw)
     (cond
-      ((eq? 'return (statement-type statement)) (interpret-return statement environment return))
+      ((eq? 'return (statement-type statement)) (interpret-return statement environment return break continue throw))
       ((eq? 'var (statement-type statement)) (interpret-declare statement environment))
       ((eq? '= (statement-type statement)) (interpret-assign statement environment))
       ((eq? 'if (statement-type statement)) (interpret-if statement environment return break continue throw))
@@ -94,8 +86,18 @@
 
 ; Calls the return continuation with the given expression value
 (define interpret-return
-  (lambda (statement environment return)
-    (return (eval-expression (get-expr statement) environment))))
+  (lambda (statement environment return break continue throw)
+    (if (contains? (cadr statement) 'funcall)
+        (interpret-funcall (cadr statement) environment return break continue throw)
+        (return (eval-expression (get-expr statement) environment)))))
+
+(define contains?
+  (lambda (list x)
+    (cond
+      ((null? list) #f)
+      ((not (list? list)) #f)
+      ((equal? (car list) x) #t)
+      (else (contains? (cdr list) x)))))
 
 ; Adds a new variable binding to the environment.  There may be an assignment with the variable
 (define interpret-declare
@@ -207,7 +209,11 @@
 ; Function call interpreter
 (define interpret-funcall
   (lambda (statement environment return break continue throw)
-    ()))
+    (eval-function (cadr statement) (get-actual-params statement) environment throw)))
+
+(define get-actual-params
+  (lambda (statement)
+    (cddr statement)))
 
 (define eval-function
   (lambda (name actual-params environment throw)
@@ -216,7 +222,13 @@
     (define formal-params (car closure))
     (define fstate2 (create-bindings formal-params actual-params environment (push-frame fstate1)))
     (define body (caddr closure))
-    (interpret-statement-list body fstate2 (lambda (v) v) (lambda (s) (myerror "Break used outside of loop")) (lambda (t) (myerror "Continue used outside of loop")) throw)))
+    (pop-frame (interpret-statement-list body fstate2 (lambda (v) v) (lambda (s) (myerror "Break used outside of loop")) (lambda (t) (myerror "Continue used outside of loop")) throw))))
+
+(define create-bindings
+  (lambda (formal-params actual-params state environment)
+    (if (null? formal-params)
+        environment
+        (create-bindings (cdr formal-params) (cdr actual-params) state (insert (car formal-params) (eval-expression (car actual-params) state) environment))))) 
      
 ; Evaluates all possible boolean and arithmetic expressions, including constants and variables.
 (define eval-expression
