@@ -17,22 +17,22 @@
     (scheme->language
      (call/cc
       (lambda (return)
-        (create-global-state (parser file) (newenvironment)))))))
+        (create-global-state (parser file) (newenvironment) (lambda (v env) (myerror "Uncaught exception thrown"))))))))
 
 ;
 (define create-global-state
-  (lambda (statement-list global-state)
+  (lambda (statement-list global-state throw)
     (display global-state)
     (display "\n")
     (if (null? statement-list)
         (run-main global-state)
-        (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state)))))
+        (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state throw) throw))))
 
 ;
 (define interpret-global-statement-list
-  (lambda (statement global-state)
+  (lambda (statement global-state throw)
     (cond
-      ((eq? 'var (statement-type statement)) (declare-variable statement global-state))
+      ((eq? 'var (statement-type statement)) (declare-variable statement global-state throw))
       ((eq? 'function (statement-type statement)) (interpret-function statement global-state))
       (else (myerror "Unknown global statement:" (statement-type global-state))))))
 
@@ -43,9 +43,9 @@
 
 ; Adds a new variable binding to the global state
 (define declare-variable
-  (lambda (statement environment)
+  (lambda (statement environment throw)
     (if (exists-declare-value? statement)
-        (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment) environment)
+        (insert (get-declare-var statement) (eval-anything statement environment throw) environment)
         (insert (get-declare-var statement) 'novalue environment))))
 
 ; The main function.  Calls parser to get the parse tree and interprets it with a new environment.  The returned value is in the environment.
@@ -53,9 +53,9 @@
   (lambda (main-function-body global-state)
     (call/cc
       (lambda (return)
-        (interpret-statement-list main-function-body global-state return
+        (pop-frame (interpret-statement-list main-function-body (push-frame global-state) return
                                   (lambda (env) (myerror "Break used outside of loop")) (lambda (env) (myerror "Continue used outside of loop"))
-                                  (lambda (v env) (myerror "Uncaught exception thrown")))))))
+                                  (lambda (v env) (myerror "Uncaught exception thrown"))))))))
 
 ; interprets a list of statements.  The environment from each statement is used for the next ones.
 ; Mstate (<statement><statement-list>, state) = Mstate(<statement-list>, Mstate(<statement>, state))
@@ -88,7 +88,7 @@
 (define interpret-return
   (lambda (statement environment return break continue throw)
     (if (contains? (cadr statement) 'funcall)
-        (interpret-funcall (cadr statement) environment return break continue throw)
+        (return (eval-function (cadadr statement) (get-actual-params (cadr statement)) environment throw))
         (return (eval-expression (get-expr statement) environment)))))
 
 (define contains?
@@ -208,7 +208,7 @@
 
 ; Function call interpreter
 (define interpret-funcall
-  (lambda (statement environment return break continue throw)
+  (lambda (statement environment throw)
     (eval-function (cadr statement) (get-actual-params statement) environment throw)))
 
 (define get-actual-params
@@ -218,11 +218,18 @@
 (define eval-function
   (lambda (name actual-params environment throw)
     (define closure (lookup name environment))
-    (define fstate1 (cadr closure))
+    (define fstate1 (caddr closure))
     (define formal-params (car closure))
     (define fstate2 (create-bindings formal-params actual-params environment (push-frame fstate1)))
-    (define body (caddr closure))
+    (define body (cadr closure))
     (pop-frame (interpret-statement-list body fstate2 (lambda (v) v) (lambda (s) (myerror "Break used outside of loop")) (lambda (t) (myerror "Continue used outside of loop")) throw))))
+                                        ;(statement-list environment return break continue throw)
+
+(define eval-anything
+  (lambda (statement environment throw)
+    (if (contains? (caddr statement) 'funcall)
+        (eval-function (cadr statement) (get-actual-params statement) environment throw)
+        (eval-expression (get-declare-value statement) environment))))
 
 (define create-bindings
   (lambda (formal-params actual-params state environment)
