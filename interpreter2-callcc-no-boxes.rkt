@@ -142,7 +142,7 @@
 ; We use a continuation to throw the proper value. Because we are not using boxes, the environment/state must be thrown as well so any environment changes will be kept
 (define interpret-throw
   (lambda (statement environment throw)
-    (throw (eval-expression (get-expr statement) environment) environment)))
+    (throw (eval-expression (get-expr statement) environment throw) environment)))
 
 ; Interpret a try-catch-finally block
 
@@ -220,7 +220,7 @@
     (define formal-params (car closure))
     (define fstate2 (create-bindings formal-params actual-params environment (push-frame fstate1) throw))
     (define body (cadr closure))
-    (pop-frame (interpret-statement-list body fstate2 (lambda (v) v) (lambda (s) (myerror "Break used outside of loop")) (lambda (t) (myerror "Continue used outside of loop")) throw))))
+    (pop-frame (interpret-statement-list body (add-frame (car fstate2) environment) (lambda (v) v) (lambda (s) (myerror "Break used outside of loop")) (lambda (t) (myerror "Continue used outside of loop")) throw))))
                                         ;(statement-list environment return break continue throw)
 
 (define eval-anything
@@ -341,6 +341,11 @@
 (define push-frame
   (lambda (environment)
     (cons (newframe) environment)))
+
+; add environment frame onto the top of the global state
+(define add-frame
+  (lambda (environment global-state)
+    (cons environment global-state)))
 
 ; remove a frame from the environment
 (define pop-frame
