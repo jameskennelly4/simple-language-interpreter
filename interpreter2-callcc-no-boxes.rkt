@@ -89,6 +89,7 @@
       ((eq? 'throw (statement-type statement)) (interpret-throw statement environment throw))
       ((eq? 'try (statement-type statement)) (interpret-try statement environment return break continue throw))
       ((eq? 'function (statement-type statement)) (interpret-function statement environment))
+      ((eq? 'funcall (statement-type statement)) (interpret-funcall statement environment return break continue throw))
       (else (myerror "Unknown statement:" (statement-type statement))))))
 
 ; Calls the return continuation with the given expression value
@@ -203,6 +204,20 @@
   (lambda (formal-params body environment)
     (cons formal-params (cons body (cons environment '())))))
 
+; Function call interpreter
+(define interpret-funcall
+  (lambda (statement environment return break continue throw)
+    ()))
+
+(define eval-function
+  (lambda (name actual-params environment throw)
+    (define closure (lookup name environment))
+    (define fstate1 (cadr closure))
+    (define formal-params (car closure))
+    (define fstate2 (create-bindings formal-params actual-params environment (push-frame fstate1)))
+    (define body (caddr closure))
+    (interpret-statement-list body fstate2 (lambda (v) v) (lambda (s) (myerror "Break used outside of loop")) (lambda (t) (myerror "Continue used outside of loop")) throw)))
+     
 ; Evaluates all possible boolean and arithmetic expressions, including constants and variables.
 (define eval-expression
   (lambda (expr environment)
