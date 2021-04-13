@@ -45,8 +45,9 @@
 (define declare-variable
   (lambda (statement environment throw)
     (if (exists-declare-value? statement)
-        (insert (get-declare-var statement) (eval-anything statement environment throw) environment)
+        (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment throw) environment)
         (insert (get-declare-var statement) 'novalue environment))))
+
 
 ; The main function.  Calls parser to get the parse tree and interprets it with a new environment.  The returned value is in the environment.
 (define interpret-main
@@ -221,20 +222,16 @@
     (define fstate2 (create-bindings formal-params actual-params environment (push-frame fstate1) throw))
     (define body (cadr closure))
     (pop-frame (interpret-statement-list body (add-frame (car fstate2) environment) (lambda (v) v) (lambda (s) (myerror "Break used outside of loop")) (lambda (t) (myerror "Continue used outside of loop")) throw))))
-                                        ;(statement-list environment return break continue throw)
 
-(define eval-anything
-  (lambda (statement environment throw)
-    (if (contains? (caddr statement) 'funcall)
-        (eval-function (cadr statement) (get-actual-params statement) environment throw)
-        (eval-expression (get-declare-value statement) environment throw))))
 
 (define create-bindings
   (lambda (formal-params actual-params state environment throw)
-    (if (null? formal-params)
-        environment
-        (create-bindings (cdr formal-params) (cdr actual-params) state (insert (car formal-params) (eval-expression (car actual-params) state throw) environment) throw)))) 
-     
+    (if (eq? (length formal-params) (length actual-params))
+        (if (null? formal-params)
+            environment
+            (create-bindings (cdr formal-params) (cdr actual-params) state (insert (car formal-params) (eval-expression (car actual-params) state throw) environment) throw))
+        (myerror "Mismatched parameters"))))
+    
 ; Evaluates all possible boolean and arithmetic expressions, including constants and variables.
 (define eval-expression
   (lambda (expr environment throw)
@@ -454,6 +451,7 @@
     (cond
       ((eq? var (car varlist)) (cons (scheme->language val) (cdr vallist)))
       (else (cons (car vallist) (update-in-frame-store var val (cdr varlist) (cdr vallist)))))))
+
 
 ; Returns the list of variables from a frame
 (define variables
