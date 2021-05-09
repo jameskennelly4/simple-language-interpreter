@@ -3,7 +3,7 @@
 ; Simple-interpreter HW1 Programming Language Concepts 2021
 ; Authors: Barry McCoy, James Kennelly, Paul Rodriguez
 
-(require "classParser.rkt")
+(require "simpleParser.rkt")
 
 ; atoms that are not allowed to be variables
 (define forbidden-characters '(+ - / * % == != < <= > >= && || !)) 

@@ -3,25 +3,35 @@
 ; Imperitive Language Interpreter Project Programming Language Concepts 2021
 ; Authors: Barry McCoy, James Kennelly, Paul Rodriguez
 
-(require "functionParser.rkt")
+(require "classParser.rkt")
 
 ; An interpreter for the simple language that uses call/cc for the continuations.  Does not handle side effects.
 (define call/cc call-with-current-continuation)
 
 ; The main function.  Calls parser to get the parse tree and interprets it with a new environment.  The returned value is in the environment.
 (define interpret
-  (lambda (file)
+  (lambda (file classname)
     (scheme->language
      (call/cc
       (lambda (return)
-        (create-global-state (parser file) (newenvironment) (lambda (v env) (myerror "Uncaught exception thrown"))))))))
+        (create-global-class-state (parser file) classname (newenvironment) (lambda (v env) (myerror "Uncaught exception thrown"))))))))
+
+(define create-global-class-state
+  (lambda (class-statement-list classname global-class-state throw)
+    (if (null? class-statement-list)
+        (run-main-class global-class-state classname)
+        (create-global-class-state (cdr class-statement-list) classname (interpret-class-statement-list (car class-statement-list) global-class-state) throw))))
+
+(define interpret-class-statement-list
+  (lambda (class-statement environment)
+    (insert (cadr class-statement) (cadddr class-statement) environment)))
 
 ; Creates an outer layer that just does M-state functions for variable declarations and function definitions, and then runs the main function
 (define create-global-state
-  (lambda (statement-list global-state throw)
+  (lambda (statement-list  global-state throw)
     (if (null? statement-list)
-        (run-main global-state)
-        (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state throw) throw))))
+        (run-main global-state) 
+    (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state throw) throw))))
 
 ; Interprets the variable declarations and function definitions of the outer layer
 (define interpret-global-statement-list
@@ -29,9 +39,14 @@
     (cond
       ((eq? 'var (statement-type statement)) (interpret-declare statement global-state throw))
       ((eq? 'function (statement-type statement)) (interpret-function statement global-state))
+      ((eq? 'static-function (statement-type statement)) (interpret-function statement global-state))
       (else (myerror "Unknown global statement:" (statement-type global-state))))))
 
 ; Takes in the global-state (the outer layer) and runs the main function
+(define run-main-class
+  (lambda (global-state classname)
+    (interpret-main (create-global-state (lookup-in-env classname global-state) global-state (lambda (v env) (myerror "Uncaught exception thrown"))) global-state)))
+
 (define run-main
   (lambda (global-state)
     (interpret-main (cadr (lookup 'main global-state)) global-state)))
