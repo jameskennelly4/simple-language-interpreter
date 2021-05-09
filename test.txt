@@ -1,18 +1,20 @@
-function f(x) {
-  function g(x) {
-    var b;
-    b = x;
-    return 0;
+function gcd(a, &b) {
+  if (a < b) {
+    var temp = a;
+    a = b;
+    b = temp;
   }
-
-  function h(x) {
-    b = x;
-    return 1;
+  var r = a % b;
+  while (r != 0) {
+    a = b;
+    b = r;
+    r = a % b;
   }
-
-  return g(x) + h(x);
+  return b;
 }
-
-function main() {
-  return f(10);
+function main () {
+  var x = 14;
+  var y = 3 * x - 7;
+  gcd(x,y);
+  return x+y;
 }
