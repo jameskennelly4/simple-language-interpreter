@@ -14,13 +14,13 @@
     (scheme->language
      (call/cc
       (lambda (return)
-        (create-global-class-state (parser file) classname (newenvironment) (lambda (v env) (myerror "Uncaught exception thrown"))))))))
+        (create-global-class-state (parser file) classname (newenvironment) return (lambda (v env) (myerror "Uncaught exception thrown"))))))))
 
 (define create-global-class-state
-  (lambda (class-statement-list classname global-class-state throw)
+  (lambda (class-statement-list classname global-class-state return throw)
     (if (null? class-statement-list)
-        (run-main-class global-class-state classname)
-        (create-global-class-state (cdr class-statement-list) classname (interpret-class-statement-list (car class-statement-list) global-class-state) throw))))
+        (run-main-class global-class-state classname return)
+        (create-global-class-state (cdr class-statement-list) classname (interpret-class-statement-list (car class-statement-list) global-class-state) return throw)))) 
 
 (define interpret-class-statement-list
   (lambda (class-statement environment)
@@ -28,10 +28,10 @@
 
 ; Creates an outer layer that just does M-state functions for variable declarations and function definitions, and then runs the main function
 (define create-global-state
-  (lambda (statement-list  global-state throw)
+  (lambda (statement-list global-state return throw)
     (if (null? statement-list)
-        (run-main global-state) 
-    (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state throw) throw))))
+        (return (run-main global-state)) 
+    (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state throw) return throw))))
 
 ; Interprets the variable declarations and function definitions of the outer layer
 (define interpret-global-statement-list
@@ -44,11 +44,15 @@
 
 ; Takes in the global-state (the outer layer) and runs the main function
 (define run-main-class
-  (lambda (global-state classname)
-    (interpret-main (create-global-state (lookup-in-env classname global-state) global-state (lambda (v env) (myerror "Uncaught exception thrown"))) global-state)))
+  (lambda (global-state classname return)
+    (display global-state)
+    (display "\n")
+    (create-global-state (lookup-in-env classname global-state) global-state return (lambda (v env) (myerror "Uncaught exception thrown")))))
 
 (define run-main
   (lambda (global-state)
+    (display global-state)
+    (display "\n")
     (interpret-main (cadr (lookup 'main global-state)) global-state)))
 
 ; Takes in the body of the main function and the global state, and then evaluates the body
