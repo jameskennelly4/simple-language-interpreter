@@ -14,17 +14,47 @@
     (scheme->language
      (call/cc
       (lambda (return)
-        (create-global-class-state (parser file) classname (newenvironment) return (lambda (v env) (myerror "Uncaught exception thrown"))))))))
+        (create-class-closures (parser file) classname (newenvironment) return (lambda (v env) (myerror "Uncaught exception thrown"))))))))
 
-(define create-global-class-state
+(define create-class-closures
   (lambda (class-statement-list classname global-class-state return throw)
     (if (null? class-statement-list)
         (run-main-class global-class-state classname return)
-        (create-global-class-state (cdr class-statement-list) classname (interpret-class-statement-list (car class-statement-list) global-class-state) return throw)))) 
+        (create-class-closures (cdr class-statement-list) classname (insert classname (create-object-closure (car class-statement-list)) global-class-state) return throw)))) 
 
 (define interpret-class-statement-list
   (lambda (class-statement environment)
     (insert (cadr class-statement) (cadddr class-statement) environment)))
+
+(define create-object-closure
+  (lambda (class)
+    (cons (parent-class class) (cons (instance-fields-and-methods (cadddr class)) '()))))
+
+(define parent-class
+  (lambda (class)
+    (if (parent-class-exists? class)
+        (extends-class class)
+        (cadr class))))
+
+(define extends-class
+  (lambda (class)
+    ((car (cdaddr class)))))
+
+(define parent-class-exists?
+  (lambda (class)
+    (not (null? (caddr class)))))
+
+(define instance-fields-and-methods
+  (lambda (class-body)
+    (interpret-class-fields-and-methods-statement-list class-body '(()()) (lambda (v env) (myerror "Uncaught exception thrown")))))
+
+(define interpret-class-fields-and-methods-statement-list
+  (lambda (statement-list environment throw)
+    (interpret-class-fields-and-methods-statement-list (cdr statement-list) (interpret-global-statement-list (car statement-list) environment throw) throw)))   
+
+(define create-instance-closure
+  (lambda (formal-params body environment)
+    (cons formal-params (cons body (cons environment '())))))
 
 ; Creates an outer layer that just does M-state functions for variable declarations and function definitions, and then runs the main function
 (define create-global-state
@@ -95,6 +125,15 @@
     (return (eval-expression (get-expr statement) environment throw))))
 
 ; Adds a new variable binding to the environment.  There may be an assignment with the variable
+;(define interpret-declare
+;  (lambda (statement environment throw)
+ ;   (cond
+ ;     ((exists-declare-value? statement)
+ ;      (if (eq? 'new (caddr statement))
+ ;          (create-closure 
+ ;          (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment throw) environment))                                
+ ;     (else (insert (get-declare-var statement) 'novalue environment)))))
+
 (define interpret-declare
   (lambda (statement environment throw)
     (if (exists-declare-value? statement)
