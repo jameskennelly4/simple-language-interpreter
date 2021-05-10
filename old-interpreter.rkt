@@ -34,7 +34,6 @@
 ; Takes in the global-state (the outer layer) and runs the main function
 (define run-main
   (lambda (global-state)
-    (display global-state)
     (interpret-main (cadr (lookup 'main global-state)) global-state)))
 
 ; Takes in the body of the main function and the global state, and then evaluates the body
@@ -186,6 +185,8 @@
 ; Takes in a function call and sends to eval-function to evaluate it 
 (define interpret-funcall
   (lambda (statement environment throw)
+    (display environment)
+    (display "\n")
     (eval-function (cadr statement) (get-actual-params statement) environment throw)))
 
 ; Evaluates a function call. It does this by:

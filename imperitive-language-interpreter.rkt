@@ -19,8 +19,14 @@
 (define create-class-closures
   (lambda (class-statement-list classname global-class-state return throw)
     (if (null? class-statement-list)
-        (run-main-class global-class-state classname return)
+        (run-main (lookup classname global-class-state))
         (create-class-closures (cdr class-statement-list) classname (insert classname (create-object-closure (car class-statement-list)) global-class-state) return throw)))) 
+
+;(define create-class-closures
+ ; (lambda (class-statement-list classname global-class-state return throw)
+ ;   (if (null? class-statement-list)
+ ;       (run-main-class global-class-state classname return)
+ ;       (create-class-closures (cdr class-statement-list) classname (insert classname (create-object-closure (car class-statement-list)) global-class-state) return throw)))) 
 
 (define interpret-class-statement-list
   (lambda (class-statement environment)
@@ -88,7 +94,7 @@
   (lambda (global-state)
     (display global-state)
     (display "\n")
-    (interpret-main (cadr (lookup 'main global-state)) global-state)))
+    (interpret-main (cadr (lookup 'main (cons (cadr global-state) '()))) global-state)))
 
 ; Takes in the body of the main function and the global state, and then evaluates the body
 (define interpret-main
