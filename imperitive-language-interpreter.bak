@@ -311,10 +311,9 @@
       ((eq? '! (operator expr)) (not (eval-expression (operand1 expr) environment throw)))
       ((and (eq? '- (operator expr)) (= 2 (length expr))) (- (eval-expression (operand1 expr) environment)))
       ((eq? 'funcall (operator expr)) (interpret-funcall expr environment throw))
-      ((eq? 'dot (operator expr)) (eval-dot expr environment throw))
-      (else (eval-binary-op2 expr (eval-expression (operand1 expr) environment throw) environment throw)))))
-
-; Evaluates all cases of the dot operator by checking which environment we should be looking for the value in and then looking in that respective environment
+      ((eq? 'dot (operator expr)) (eval-dot
+      (else (eval-binary-op2 expr (eval-expression (operand1 expr) environment throw) environment throw))))) 
+      
 (define eval-dot
   (lambda (expr environment throw)
     (cond
