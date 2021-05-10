@@ -34,7 +34,7 @@
 
 (define create-object-closure
   (lambda (class)
-    (cons (parent-class class) (instance-fields-and-methods (cadddr class)))))
+    (cons (cons (parent-class class) '()) (instance-fields-and-methods (cadddr class)))))
 
 (define parent-class
   (lambda (class)
@@ -63,9 +63,15 @@
         (return environment)
         (interpret-class-fields-and-methods-statement-list (cdr statement-list) (interpret-global-statement-list (car statement-list) environment throw) return throw))))   
 
+; Example test 1: var a = new A();
+; should store "a" as the instance with a closure of the run time type "A" and the fields/methods of "a"
 (define create-instance-closure
-  (lambda (formal-params body environment)
-    (cons formal-params (cons body (cons environment '())))))
+  (lambda (class-name global-state)
+    (cons (cons class-name '()) (cons (lookup class-name (get-class-closures class-name)) '()))))
+
+(define get-class-closures
+  (lambda (global-state)
+    (cdr global-state)))
 
 ; Creates an outer layer that just does M-state functions for variable declarations and function definitions, and then runs the main function
 (define create-global-state
@@ -148,8 +154,10 @@
 (define interpret-declare
   (lambda (statement environment throw)
     (if (exists-declare-value? statement)
-        (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment throw) environment)
-        (insert (get-declare-var statement) 'novalue environment))))
+        (if (list? (caddr statement))
+            (insert (get-declare-var statement) (lookup (car (cdaddr statement)) environment))
+            (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment throw) environment))
+     (insert (get-declare-var statement) 'novalue environment))))
 
 ; Updates the environment to add an new binding for a variable
 (define interpret-assign
@@ -303,7 +311,15 @@
       ((eq? '! (operator expr)) (not (eval-expression (operand1 expr) environment throw)))
       ((and (eq? '- (operator expr)) (= 2 (length expr))) (- (eval-expression (operand1 expr) environment)))
       ((eq? 'funcall (operator expr)) (interpret-funcall expr environment throw))
+      ((eq? 'dot (operator expr)) (eval-dot
       (else (eval-binary-op2 expr (eval-expression (operand1 expr) environment throw) environment throw))))) 
+      
+(define eval-dot
+  (lambda (expr environment throw)
+    (cond
+      ((eq? (cadr expr) 'this) (eval-binary-op2 expr (lookup operand2 (cadr (lookup operand1 environment))) environment throw) environment throw)
+      ((eq? (cadr expr) 'super) (eval-binary-op2 expr (lookup (car (lookup operand1 environment)) (cadr (lookup operand1 environment))) environment throw) environment throw)
+      (else (eval-binary-op2 expr (eval-expression (lookup operand2 (cadr (lookup operand1 environment))) environment throw) environment throw)))))
 
 ; Complete the evaluation of the binary operator by evaluating the second operand and performing the operation.
 (define eval-binary-op2
