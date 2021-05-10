@@ -3,70 +3,25 @@
 ; Imperitive Language Interpreter Project Programming Language Concepts 2021
 ; Authors: Barry McCoy, James Kennelly, Paul Rodriguez
 
-(require "classParser.rkt")
+(require "functionParser.rkt")
 
 ; An interpreter for the simple language that uses call/cc for the continuations.  Does not handle side effects.
 (define call/cc call-with-current-continuation)
 
 ; The main function.  Calls parser to get the parse tree and interprets it with a new environment.  The returned value is in the environment.
 (define interpret
-  (lambda (file classname)
+  (lambda (file)
     (scheme->language
      (call/cc
       (lambda (return)
-        (create-class-closures (parser file) classname (newenvironment) return (lambda (v env) (myerror "Uncaught exception thrown"))))))))
-
-(define create-class-closures
-  (lambda (class-statement-list classname global-class-state return throw)
-    (if (null? class-statement-list)
-        (run-main-class global-class-state classname return)
-        (create-class-closures (cdr class-statement-list) classname (insert classname (create-object-closure (car class-statement-list)) global-class-state) return throw)))) 
-
-(define interpret-class-statement-list
-  (lambda (class-statement environment)
-    (insert (cadr class-statement) (cadddr class-statement) environment)))
-
-(define create-object-closure
-  (lambda (class)
-    (cons (parent-class class) (instance-fields-and-methods (cadddr class)))))
-
-(define parent-class
-  (lambda (class)
-    (if (parent-class-exists? class)
-        (extends-class class)
-        (cadr class))))
-
-(define extends-class
-  (lambda (class)
-    ((car (cdaddr class)))))
-
-(define parent-class-exists?
-  (lambda (class)
-    (not (null? (caddr class)))))
-
-(define instance-fields-and-methods
-  (lambda (class-body)
-    (scheme->language
-     (call/cc
-      (lambda (return)
-        (interpret-class-fields-and-methods-statement-list class-body (newenvironment) return (lambda (v env) (myerror "Uncaught exception thrown")))))))) 
-
-(define interpret-class-fields-and-methods-statement-list
-  (lambda (statement-list environment return throw)
-    (if (null? statement-list)
-        (return environment)
-        (interpret-class-fields-and-methods-statement-list (cdr statement-list) (interpret-global-statement-list (car statement-list) environment throw) return throw))))   
-
-(define create-instance-closure
-  (lambda (formal-params body environment)
-    (cons formal-params (cons body (cons environment '())))))
+        (create-global-state (parser file) (newenvironment) (lambda (v env) (myerror "Uncaught exception thrown"))))))))
 
 ; Creates an outer layer that just does M-state functions for variable declarations and function definitions, and then runs the main function
 (define create-global-state
-  (lambda (statement-list global-state return throw)
+  (lambda (statement-list global-state throw)
     (if (null? statement-list)
-        (return (run-main global-state)) 
-    (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state throw) return throw))))
+        (run-main global-state)
+        (create-global-state (cdr statement-list) (interpret-global-statement-list (car statement-list) global-state throw) throw))))
 
 ; Interprets the variable declarations and function definitions of the outer layer
 (define interpret-global-statement-list
@@ -74,20 +29,11 @@
     (cond
       ((eq? 'var (statement-type statement)) (interpret-declare statement global-state throw))
       ((eq? 'function (statement-type statement)) (interpret-function statement global-state))
-      ((eq? 'static-function (statement-type statement)) (interpret-static-function statement global-state))
       (else (myerror "Unknown global statement:" (statement-type global-state))))))
 
 ; Takes in the global-state (the outer layer) and runs the main function
-(define run-main-class
-  (lambda (global-state classname return)
-    (display global-state)
-    (display "\n")
-    (create-global-state (lookup-in-env classname global-state) global-state return (lambda (v env) (myerror "Uncaught exception thrown")))))
-
 (define run-main
   (lambda (global-state)
-    (display global-state)
-    (display "\n")
     (interpret-main (cadr (lookup 'main global-state)) global-state)))
 
 ; Takes in the body of the main function and the global state, and then evaluates the body
@@ -130,15 +76,6 @@
     (return (eval-expression (get-expr statement) environment throw))))
 
 ; Adds a new variable binding to the environment.  There may be an assignment with the variable
-;(define interpret-declare
-;  (lambda (statement environment throw)
- ;   (cond
- ;     ((exists-declare-value? statement)
- ;      (if (eq? 'new (caddr statement))
- ;          (create-closure 
- ;          (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment throw) environment))                                
- ;     (else (insert (get-declare-var statement) 'novalue environment)))))
-
 (define interpret-declare
   (lambda (statement environment throw)
     (if (exists-declare-value? statement)
@@ -235,12 +172,6 @@
 
 ; Adds a new binding to the environment. The function name is bound to its closure
 (define interpret-function
-  (lambda (statement environment)
-    (if (exists-declare-value? statement)
-        (insert (get-declare-var statement) (create-closure (operand2 statement) (operand3 statement) environment) environment)
-        (insert (get-declare-var statement) 'novalue environment))))
-
-(define interpret-static-function
   (lambda (statement environment)
     (if (exists-declare-value? statement)
         (insert (get-declare-var statement) (create-closure (operand2 statement) (operand3 statement) environment) environment)
