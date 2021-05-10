@@ -1,6 +1,6 @@
 #lang racket
 
-; Imperitive Language Interpreter Project Programming Language Concepts 2021
+; OO Interpreter Project Programming Language Concepts 2021
 ; Authors: Barry McCoy, James Kennelly, Paul Rodriguez
 
 (require "classParser.rkt")
@@ -16,43 +16,36 @@
       (lambda (return)
         (create-class-closures (parser file) classname (newenvironment) return (lambda (v env) (myerror "Uncaught exception thrown"))))))))
 
-;*
+; Higher level function to go through and create class closures for all classes
 (define create-class-closures
   (lambda (class-statement-list classname class-closures return throw)
-    (display class-closures)
-    (display "\n")
     (if (null? class-statement-list)
         (run-main classname class-closures)
-        (create-class-closures (cdr class-statement-list) classname (insert classname (create-object-closure (car class-statement-list)) class-closures) return throw))))
+        (create-class-closures (cdr class-statement-list) classname (insert classname (create-class-closure (car class-statement-list)) class-closures) return throw))))
 
-;(define create-class-closures
- ; (lambda (class-statement-list classname global-class-state return throw)
- ;   (if (null? class-statement-list)
- ;       (run-main-class global-class-state classname return)
- ;       (create-class-closures (cdr class-statement-list) classname (insert classname (create-object-closure (car class-statement-list)) global-class-state) return throw)))) 
-
-(define interpret-class-statement-list
-  (lambda (class-statement environment)
-    (insert (cadr class-statement) (cadddr class-statement) environment)))
-
-(define create-object-closure
+; Function to create a class closure containing the parent class and instance fields and methods
+(define create-class-closure
   (lambda (class)
     (cons (cons (parent-class class) '()) (instance-fields-and-methods (cadddr class)))))
 
+; Helper function to get parent class
 (define parent-class
   (lambda (class)
     (if (parent-class-exists? class)
         (extends-class class)
         (cadr class))))
 
+; Helper function for parent class
 (define extends-class
   (lambda (class)
     ((car (cdaddr class)))))
 
+; Function to check if there is a parent class
 (define parent-class-exists?
   (lambda (class)
     (not (null? (caddr class)))))
 
+; Helper function to get all instance fields and methods for the class closures
 (define instance-fields-and-methods
   (lambda (class-body)
     (scheme->language
@@ -60,6 +53,7 @@
       (lambda (return)
         (interpret-class-fields-and-methods-statement-list class-body (newenvironment) return (lambda (v env) (myerror "Uncaught exception thrown")))))))) 
 
+; Returns the environment created after interpreting all of the class fields and methods
 (define interpret-class-fields-and-methods-statement-list
   (lambda (statement-list environment return throw)
     (if (null? statement-list)
@@ -92,18 +86,9 @@
       ((eq? 'static-function (statement-type statement)) (interpret-static-function statement global-state))
       (else (myerror "Unknown global statement:" (statement-type global-state))))))
 
-; Takes in the global-state (the outer layer) and runs the main function
-(define run-main-class
-  (lambda (global-state classname return)
-    (display global-state)
-    (display "\n")
-    (create-global-state (lookup-in-env classname global-state) global-state return (lambda (v env) (myerror "Uncaught exception thrown")))))
-
-; *
+; looks up and executes the main function of the given class
 (define run-main
   (lambda (classname global-state)
-    (display global-state)
-    (display "\n")
     (interpret-main (cadr (lookup 'main (cdr (lookup 'A global-state)))) global-state)))
 
 ; Takes in the body of the main function and the global state, and then evaluates the body
@@ -118,8 +103,6 @@
 ; Interprets a list of statements.  The environment from each statement is used for the next ones
 (define interpret-statement-list
   (lambda (statement-list environment return break continue throw)
-    (display environment)
-    (display "\n")
     (if (null? statement-list)
         environment
         (interpret-statement-list (cdr statement-list) (interpret-statement (car statement-list) environment return break continue throw) return break continue throw))))
@@ -147,17 +130,7 @@
   (lambda (statement environment return break continue throw)
     (return (eval-expression (get-expr statement) environment throw))))
 
-; Adds a new variable binding to the environment.  There may be an assignment with the variable
-;(define interpret-declare
-;  (lambda (statement environment throw)
- ;   (cond
- ;     ((exists-declare-value? statement)
- ;      (if (eq? 'new (caddr statement))
- ;          (create-closure 
- ;          (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment throw) environment))                                
- ;     (else (insert (get-declare-var statement) 'novalue environment)))))
-
-;*
+; Function to interpret a declare statement and handle if it is an object
 (define interpret-declare
   (lambda (statement environment throw)
     (if (exists-declare-value? statement)
@@ -327,7 +300,7 @@
 (define eval-dot
   (lambda (expr environment throw)
     (cond
-      ((eq? (cadr expr) 'this) (eval-binary-op2 expr (lookup (operand2 expr) (cadr (lookup (operand1 expr) environment))) environment throw) environment throw)
+      ((eq? (cadr expr) 'this) (lookup (operand2 expr) (get-class-closures environment)))
       ((eq? (cadr expr) 'super) (eval-binary-op2 expr (lookup (car (lookup (operand1 expr) environment)) (cadr (lookup operand1 environment))) environment throw) environment throw)
       ((function-exists (operand2 expr) (lookup (operand1 expr) environment)) (eval-function (operand2 expr) (get-actual-params (lookup (operand1 expr) environment)) (lookup (operand2 expr) (cons (cadr (lookup (operand1 expr))) '())) throw))
       (else (eval-expression (lookup (operand2 expr) (cons (cadr (lookup (operand1 expr) environment)) '())) environment throw)))))
