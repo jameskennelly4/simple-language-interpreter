@@ -296,14 +296,17 @@
       ((eq? 'dot (operator expr)) (eval-dot expr environment throw))
       (else (eval-binary-op2 expr (eval-expression (operand1 expr) environment throw) environment throw)))))
 
+
 ; Evaluates all cases of the dot operator by checking which environment we should be looking for the value in and then looking in that respective environment
 (define eval-dot
   (lambda (expr environment throw)
     (cond
       ((eq? (cadr expr) 'this) (lookup (operand2 expr) (get-class-closures environment)))
       ((eq? (cadr expr) 'super) (eval-binary-op2 expr (lookup (car (lookup (operand1 expr) environment)) (cadr (lookup operand1 environment))) environment throw) environment throw)
-      ((function-exists (operand2 expr) (lookup (operand1 expr) environment)) (eval-function (operand2 expr) (get-actual-params (lookup (operand1 expr) environment)) (lookup (operand2 expr) (cons (cadr (lookup (operand1 expr))) '())) throw))
+      ((list? (lookup (operand2 expr) (cdr (lookup (operand1 expr) environment))))
+       (eval-function (operand2 expr) (get-actual-params (lookup (operand1 expr) environment)) (lookup (operand2 expr) (cons (cadr (lookup (operand1 expr) environment)) '())) throw))
       (else (eval-expression (lookup (operand2 expr) (cons (cadr (lookup (operand1 expr) environment)) '())) environment throw)))))
+
 
 
 (define function-exists
