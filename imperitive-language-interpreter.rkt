@@ -275,7 +275,9 @@
 ; Takes in a function call and sends to eval-function to evaluate it 
 (define interpret-funcall
   (lambda (statement environment throw)
-    (eval-function (cadr statement) (get-actual-params statement) environment throw)))
+    (if (list? (cadr statement))
+        (eval-function (caddr (cadr statement)) (get-actual-params statement) (cons (cadr (lookup (cadr (cadr statement)) environment)) '()) throw)
+        (eval-function (cadr statement) (get-actual-params statement) environment throw))))
 
 ; Evaluates a function call. It does this by:
 ; (a) Creating a function environment using the closure function on the current environment
@@ -327,7 +329,13 @@
     (cond
       ((eq? (cadr expr) 'this) (eval-binary-op2 expr (lookup (operand2 expr) (cadr (lookup (operand1 expr) environment))) environment throw) environment throw)
       ((eq? (cadr expr) 'super) (eval-binary-op2 expr (lookup (car (lookup (operand1 expr) environment)) (cadr (lookup operand1 environment))) environment throw) environment throw)
+      ((function-exists (operand2 expr) (lookup (operand1 expr) environment)) (eval-function (operand2 expr) (get-actual-params (lookup (operand1 expr) environment)) (lookup (operand2 expr) (cons (cadr (lookup (operand1 expr))) '())) throw))
       (else (eval-expression (lookup (operand2 expr) (cons (cadr (lookup (operand1 expr) environment)) '())) environment throw)))))
+
+
+(define function-exists
+  (lambda (func-name instance)
+    (exists? func-name (cadr instance))))
 
 ; Complete the evaluation of the binary operator by evaluating the second operand and performing the operation.
 (define eval-binary-op2
