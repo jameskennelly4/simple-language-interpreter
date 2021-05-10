@@ -16,14 +16,11 @@
       (lambda (return)
         (create-class-closures (parser file) classname (newenvironment) return (lambda (v env) (myerror "Uncaught exception thrown"))))))))
 
-;*
 (define create-class-closures
-  (lambda (class-statement-list classname class-closures return throw)
-    (display class-closures)
-    (display "\n")
+  (lambda (class-statement-list classname global-class-state return throw)
     (if (null? class-statement-list)
-        (run-main classname class-closures)
-        (create-class-closures (cdr class-statement-list) classname (insert classname (create-object-closure (car class-statement-list)) class-closures) return throw))))
+        (run-main (lookup classname global-class-state))
+        (create-class-closures (cdr class-statement-list) classname (insert classname (create-object-closure (car class-statement-list)) global-class-state) return throw)))) 
 
 ;(define create-class-closures
  ; (lambda (class-statement-list classname global-class-state return throw)
@@ -99,12 +96,11 @@
     (display "\n")
     (create-global-state (lookup-in-env classname global-state) global-state return (lambda (v env) (myerror "Uncaught exception thrown")))))
 
-; *
 (define run-main
-  (lambda (classname global-state)
+  (lambda (global-state)
     (display global-state)
     (display "\n")
-    (interpret-main (cadr (lookup 'main (cdr (lookup 'A global-state)))) global-state)))
+    (interpret-main (cadr (lookup 'main (cons (cadr global-state) '()))) global-state)))
 
 ; Takes in the body of the main function and the global state, and then evaluates the body
 (define interpret-main
@@ -118,8 +114,6 @@
 ; Interprets a list of statements.  The environment from each statement is used for the next ones
 (define interpret-statement-list
   (lambda (statement-list environment return break continue throw)
-    (display environment)
-    (display "\n")
     (if (null? statement-list)
         environment
         (interpret-statement-list (cdr statement-list) (interpret-statement (car statement-list) environment return break continue throw) return break continue throw))))
@@ -157,12 +151,11 @@
  ;          (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment throw) environment))                                
  ;     (else (insert (get-declare-var statement) 'novalue environment)))))
 
-;*
 (define interpret-declare
   (lambda (statement environment throw)
     (if (exists-declare-value? statement)
         (if (list? (caddr statement))
-            (insert (get-declare-var statement) (lookup (car (cdaddr statement)) environment) environment)
+            (insert (get-declare-var statement) (lookup (car (cdaddr statement)) environment))
             (insert (get-declare-var statement) (eval-expression (get-declare-value statement) environment throw) environment))
      (insert (get-declare-var statement) 'novalue environment))))
 
@@ -325,9 +318,9 @@
 (define eval-dot
   (lambda (expr environment throw)
     (cond
-      ((eq? (cadr expr) 'this) (eval-binary-op2 expr (lookup (operand2 expr) (cadr (lookup (operand1 expr) environment))) environment throw) environment throw)
-      ((eq? (cadr expr) 'super) (eval-binary-op2 expr (lookup (car (lookup (operand1 expr) environment)) (cadr (lookup operand1 environment))) environment throw) environment throw)
-      (else (eval-expression (lookup (operand2 expr) (cons (cadr (lookup (operand1 expr) environment)) '())) environment throw)))))
+      ((eq? (cadr expr) 'this) (eval-binary-op2 expr (lookup operand2 (cadr (lookup operand1 environment))) environment throw) environment throw)
+      ((eq? (cadr expr) 'super) (eval-binary-op2 expr (lookup (car (lookup operand1 environment)) (cadr (lookup operand1 environment))) environment throw) environment throw)
+      (else (eval-binary-op2 expr (eval-expression (lookup operand2 (cadr (lookup operand1 environment))) environment throw) environment throw)))))
 
 ; Complete the evaluation of the binary operator by evaluating the second operand and performing the operation.
 (define eval-binary-op2
